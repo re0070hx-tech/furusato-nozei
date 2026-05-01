@@ -129,7 +129,7 @@ jobs:
         working-directory: backend
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)
-          python -m ${{ matrix.matrix.site.module }}
+          python -X utf8 -m scrapers.furunavi
   # ─────────────────────────────────────────────────────────
   # ② 全スクレイパー完了後に還元率を一括計算
   # ─────────────────────────────────────────────────────────
