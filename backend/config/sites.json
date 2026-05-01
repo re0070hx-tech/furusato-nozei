@@ -258,7 +258,7 @@
     {
       "id": "honpo",
       "display_name": "ふるさと本舗",
-      "base_url": "https://www.furusato-honpo.jp",
+      "base_url": "https://furusatohonpo.jp",
       "affiliate_asp": "a8",
       "affiliate_template": "https://px.a8.net/svt/ejp?a8mat={AFF_ID}&a8ejpredirect={PRODUCT_URL}",
       "env_vars": {
@@ -270,8 +270,40 @@
       "default_point_type": "選択制",
       "scraper_type": "playwright",
       "scraper_module": "scrapers.honpo",
-      "is_active": false,
+      "is_active": true,
       "sort_order": 14
+    },
+    {
+      "id": "pokemaru",
+      "display_name": "ポケマルふるさと納税",
+      "base_url": "https://poke-m.com",
+      "affiliate_asp": "direct",
+      "affiliate_template": "{PRODUCT_URL}",
+      "env_vars": {},
+      "color": "#FF6F00",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "🥕",
+      "default_point_type": "選択制",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.pokemaru",
+      "is_active": true,
+      "sort_order": 6
+    },
+    {
+      "id": "whiskey_furusato",
+      "display_name": "NFTウイスキーふるさと納税",
+      "base_url": "https://whisky.alyawmu.com",
+      "affiliate_asp": "direct",
+      "affiliate_template": "{PRODUCT_URL}",
+      "env_vars": {},
+      "color": "#4E342E",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "🥃",
+      "default_point_type": "選択制",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.whiskey_furusato",
+      "is_active": true,
+      "sort_order": 7
     },
     {
       "id": "palette",

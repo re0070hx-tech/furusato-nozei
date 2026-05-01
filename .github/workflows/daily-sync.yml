@@ -45,7 +45,9 @@ jobs:
           - { id: aupay,           module: scrapers.aupay,           type: playwright, active: false }
           - { id: saison,          module: scrapers.saison,          type: playwright, active: false }
           - { id: jre_mall,        module: scrapers.jre_mall,        type: playwright, active: false }
-          - { id: honpo,           module: scrapers.honpo,           type: playwright, active: false }
+          - { id: honpo,           module: scrapers.honpo,           type: playwright, active: true  }
+          - { id: pokemaru,        module: scrapers.pokemaru,        type: playwright, active: true  }
+          - { id: whiskey_furusato, module: scrapers.whiskey_furusato, type: playwright, active: true }
           - { id: palette,         module: scrapers.palette,         type: playwright, active: false }
           - { id: hyakusen,        module: scrapers.hyakusen,        type: playwright, active: false }
           - { id: tokyu,           module: scrapers.tokyu,           type: playwright, active: false }
@@ -125,8 +127,9 @@ jobs:
           AUPAY_AFF_ID:              ${{ secrets.AUPAY_AFF_ID }}
           MONTBELL_AFF_ID:           ${{ secrets.MONTBELL_AFF_ID }}
         working-directory: backend
-        run: python -X utf8 -m ${{ matrix.site.module }}
-
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python -m ${{ matrix.matrix.site.module }}
   # ─────────────────────────────────────────────────────────
   # ② 全スクレイパー完了後に還元率を一括計算
   # ─────────────────────────────────────────────────────────

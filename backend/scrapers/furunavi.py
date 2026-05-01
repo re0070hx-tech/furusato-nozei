@@ -10,8 +10,8 @@ from urllib.parse import urljoin
 
 from playwright.sync_api import sync_playwright, Page, ElementHandle
 
-from .base_scraper import BaseScraper
-from ..lib.volume_extractor import extract_volume_g
+from backend.scrapers.base_scraper import BaseScraper
+from backend.lib.volume_extractor import extract_volume_g
 
 log = logging.getLogger(__name__)
 

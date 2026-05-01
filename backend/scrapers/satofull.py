@@ -9,8 +9,8 @@ import re
 
 from playwright.sync_api import sync_playwright, Page, ElementHandle
 
-from .base_scraper import BaseScraper
-from ..lib.volume_extractor import extract_volume_g
+from scrapers.base_scraper import BaseScraper
+from lib.volume_extractor import extract_volume_g
 
 log = logging.getLogger(__name__)
 

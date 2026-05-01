@@ -105,9 +105,21 @@ export const SITES: SiteConfig[] = [
   },
   {
     id: "honpo", display_name: "ふるさと本舗", color: "#795548", text_color: "#FFFFFF",
-    logo_emoji: "🏪", points_type: "選択制", is_active: false, sort_order: 14,
+    logo_emoji: "🏪", points_type: "選択制", is_active: true, sort_order: 14,
     affiliate_template: "https://px.a8.net/svt/ejp?a8mat={AFF_ID}&a8ejpredirect={PRODUCT_URL}",
     env_vars: { AFF_ID: "A8_HONPO_ID" },
+  },
+  {
+    id: "pokemaru", display_name: "ポケマルふるさと納税", color: "#FF6F00", text_color: "#FFFFFF",
+    logo_emoji: "🥕", points_type: "選択制", is_active: true, sort_order: 6,
+    affiliate_template: "{PRODUCT_URL}",
+    env_vars: {},
+  },
+  {
+    id: "whiskey_furusato", display_name: "NFTウイスキーふるさと納税", color: "#4E342E", text_color: "#FFFFFF",
+    logo_emoji: "🥃", points_type: "選択制", is_active: true, sort_order: 7,
+    affiliate_template: "{PRODUCT_URL}",
+    env_vars: {},
   },
   {
     id: "palette", display_name: "パレットふるさと", color: "#9C27B0", text_color: "#FFFFFF",
