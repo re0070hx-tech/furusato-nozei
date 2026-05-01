@@ -14,20 +14,8 @@ from urllib.parse import quote
 
 from playwright.sync_api import sync_playwright, Page, ElementHandle
 
-import sys
-import os
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
-
-try:
-    from scrapers.base_scraper import BaseScraper
-    from lib.volume_extractor import extract_volume_g
-except ImportError:
-    from base_scraper import BaseScraper
-    from lib.volume_extractor import extract_volume_g
+from scrapers.base_scraper import BaseScraper
+from lib.volume_extractor import extract_volume_g
 
 log = logging.getLogger(__name__)
 

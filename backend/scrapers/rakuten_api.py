@@ -11,7 +11,9 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from supabase import create_client, Client
+from scrapers.base_scraper import BaseScraper
+from lib.volume_extractor import extract_volume_g
+from lib.affiliate import generate_affiliate_link
 
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 

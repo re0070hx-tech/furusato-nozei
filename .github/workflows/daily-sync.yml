@@ -128,8 +128,8 @@ jobs:
           MONTBELL_AFF_ID:           ${{ secrets.MONTBELL_AFF_ID }}
         working-directory: backend
         run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
-          python -X utf8 -m scrapers.furunavi
+          export PYTHONPATH=$PYTHONPATH:.
+          python -X utf8 -m ${{ matrix.site.module }}
   # ─────────────────────────────────────────────────────────
   # ② 全スクレイパー完了後に還元率を一括計算
   # ─────────────────────────────────────────────────────────
