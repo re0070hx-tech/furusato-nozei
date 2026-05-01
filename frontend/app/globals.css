@@ -77,7 +77,64 @@ body {
   transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
 }
 
-/* ─── Site badge ─── */
+/* ─── Site badge (旧クラスは後方互換で残す) ─── */
 .badge-楽天    { background: #FFE8E8; color: #C0392B; }
 .badge-ふるなび { background: #E8F2FF; color: #1A5FA8; }
 .badge-さとふる { background: #FFF4E0; color: #B35900; }
+
+/* ─── Table ─── */
+.compare-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.compare-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--forest);
+  color: rgba(255,255,255,0.82);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  white-space: nowrap;
+  text-align: left;
+}
+.compare-table tbody tr:nth-child(even) { background: white; }
+.compare-table tbody tr:nth-child(odd)  { background: var(--bg); }
+.compare-table tbody tr:hover           { background: var(--green-100); }
+.compare-table tbody td {
+  padding: 8px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--bg-2);
+  font-size: 0.85rem;
+  color: var(--text-1);
+}
+
+/* ─── スクロールバー非表示ユーティリティ ─── */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── モバイルレスポンシブ: テーブルは xs でカード表示に切替 ─── */
+@media (max-width: 640px) {
+  .compare-table thead { display: none; }
+  .compare-table tbody tr {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--bg-2);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    padding: 12px;
+    background: white !important;
+  }
+  .compare-table tbody td {
+    border-bottom: none;
+    padding: 4px 0;
+  }
+  .compare-table tbody td[data-label]::before {
+    content: attr(data-label) ": ";
+    font-size: 0.7rem;
+    color: var(--text-3);
+    font-weight: 500;
+  }
+}

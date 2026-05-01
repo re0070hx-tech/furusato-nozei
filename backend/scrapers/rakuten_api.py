@@ -60,23 +60,28 @@ def _detect_category(title: str) -> str | None:
 
 
 def _item_to_row(item: dict) -> dict:
+    from lib.affiliate import generate_affiliate_link
     images = item.get("mediumImageUrls", [])
     image_url = images[0]["imageUrl"] if images else None
-    # itemCode は "shopId:itemId" 形式 → スラッシュをアンダースコアに変換してPKを生成
     pk = "rakuten_" + item["itemCode"].replace("/", "_").replace(":", "_")
+    product_url = item["itemUrl"]
+    aff_url = generate_affiliate_link("rakuten", product_url)
 
     return {
         "id":              pk,
+        "site_id":         "rakuten",
         "site_name":       "楽天",
         "title":           item["itemName"],
         "donation_amount": int(item["itemPrice"]),
-        "volume_g":        None,   # Phase 3 (NLP) で補完
-        "asset_rate":      None,   # Phase 3 で補完
-        "market_price":    None,   # Phase 3 で補完
-        "product_url":     item["itemUrl"],
+        "volume_g":        None,
+        "asset_rate":      None,
+        "market_price":    None,
+        "product_url":     product_url,
+        "affiliate_url":   aff_url if aff_url != product_url else None,
         "image_url":       image_url,
         "category":        _detect_category(item["itemName"]),
         "payment_campaigns": None,
+        "points_type":     "楽天ポイント",
     }
 
 

@@ -4,12 +4,138 @@ on:
   schedule:
     # 毎日 AM3:00 JST = 18:00 UTC
     - cron: "0 18 * * *"
-  workflow_dispatch: # 手動実行も可能
+  workflow_dispatch:
+    inputs:
+      site_id:
+        description: "特定サイトのみ実行 (例: rakuten)。空白で全アクティブサイト実行"
+        required: false
+        default: ""
 
 jobs:
-  sync:
+  # ─────────────────────────────────────────────────────────
+  # ① 20サイト全てを matrix に列挙し、active: true のもののみ実行
+  #    新サイトのスクレイパーが完成したら active: false → true に変更する
+  #    ※ VS Code の YAML linter が job-level if の matrix 参照を警告することが
+  #       あるが、GitHub Actions 実行時は正しく評価されるため無視してよい
+  # ─────────────────────────────────────────────────────────
+  scrape:
+    name: "Scrape: ${{ matrix.site.id }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
+    continue-on-error: true
+
+    strategy:
+      max-parallel: 8
+      fail-fast: false
+      matrix:
+        site:
+          # ── アクティブ (スクレイパー実装済み) ──────────────────
+          - { id: rakuten,         module: scrapers.rakuten_api,     type: api,        active: true  }
+          - { id: furunavi,        module: scrapers.furunavi,        type: playwright, active: true  }
+          - { id: satofull,        module: scrapers.satofull,        type: playwright, active: true  }
+          # ── 未実装 (スクレイパー完成後に active: true へ変更) ───
+          - { id: amazon,          module: scrapers.amazon,          type: playwright, active: true  }
+          - { id: furusato_choice, module: scrapers.furusato_choice, type: playwright, active: true  }
+          - { id: ana,             module: scrapers.ana,             type: playwright, active: false }
+          - { id: jal,             module: scrapers.jal,             type: playwright, active: false }
+          - { id: mynavi,          module: scrapers.mynavi,          type: playwright, active: false }
+          - { id: furu_premium,    module: scrapers.furu_premium,    type: playwright, active: false }
+          - { id: furu_lab,        module: scrapers.furu_lab,        type: playwright, active: false }
+          - { id: mitsukoshi,      module: scrapers.mitsukoshi,      type: playwright, active: false }
+          - { id: aupay,           module: scrapers.aupay,           type: playwright, active: false }
+          - { id: saison,          module: scrapers.saison,          type: playwright, active: false }
+          - { id: jre_mall,        module: scrapers.jre_mall,        type: playwright, active: false }
+          - { id: honpo,           module: scrapers.honpo,           type: playwright, active: false }
+          - { id: palette,         module: scrapers.palette,         type: playwright, active: false }
+          - { id: hyakusen,        module: scrapers.hyakusen,        type: playwright, active: false }
+          - { id: tokyu,           module: scrapers.tokyu,           type: playwright, active: false }
+          - { id: qoo10,           module: scrapers.qoo10,           type: playwright, active: false }
+          - { id: montbell,        module: scrapers.montbell,        type: playwright, active: false }
+          - { id: yell,            module: scrapers.yell,            type: playwright, active: false }
+
+    steps:
+      # active フラグと手動指定フィルタをステップレベルで判定
+      # (job-level if での matrix 参照は VS Code YAML linter が誤検知するため回避)
+      - name: Check if this site should run
+        id: gate
+        run: |
+          if [ "${{ matrix.site.active }}" = "true" ] && \
+             { [ -z "${{ github.event.inputs.site_id }}" ] || \
+               [ "${{ github.event.inputs.site_id }}" = "${{ matrix.site.id }}" ]; }; then
+            echo "run=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ matrix.site.id }} をスキップ (active=${{ matrix.site.active }})"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - name: Set up Python
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Python dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: pip install -r backend/requirements.txt
+
+      - name: Install Playwright
+        if: steps.gate.outputs.run == 'true' && matrix.site.type == 'playwright'
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run scraper
+        if: steps.gate.outputs.run == 'true'
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Rakuten
+          RAKUTEN_APP_ID:            ${{ secrets.RAKUTEN_APP_ID }}
+          RAKUTEN_ACCESS_KEY:        ${{ secrets.RAKUTEN_ACCESS_KEY }}
+          RAKUTEN_AFFILIATE_ID:      ${{ secrets.RAKUTEN_AFFILIATE_ID }}
+          RAKUTEN_APP_URL:           ${{ secrets.RAKUTEN_APP_URL }}
+          # Amazon Associates
+          AMAZON_ASSOCIATES_TAG:     ${{ secrets.AMAZON_ASSOCIATES_TAG }}
+          # A8.net
+          A8_FURUNAVI_ID:            ${{ secrets.A8_FURUNAVI_ID }}
+          A8_CHOICE_ID:              ${{ secrets.A8_CHOICE_ID }}
+          A8_MYNAVI_ID:              ${{ secrets.A8_MYNAVI_ID }}
+          A8_FURULAB_ID:             ${{ secrets.A8_FURULAB_ID }}
+          A8_HONPO_ID:               ${{ secrets.A8_HONPO_ID }}
+          A8_PALETTE_ID:             ${{ secrets.A8_PALETTE_ID }}
+          A8_HYAKUSEN_ID:            ${{ secrets.A8_HYAKUSEN_ID }}
+          A8_QOO10_ID:               ${{ secrets.A8_QOO10_ID }}
+          A8_YELL_ID:                ${{ secrets.A8_YELL_ID }}
+          # ValueCommerce
+          VC_SATOFULL_SID:           ${{ secrets.VC_SATOFULL_SID }}
+          VC_SATOFULL_PID:           ${{ secrets.VC_SATOFULL_PID }}
+          VC_FURUPREMIUM_SID:        ${{ secrets.VC_FURUPREMIUM_SID }}
+          VC_FURUPREMIUM_PID:        ${{ secrets.VC_FURUPREMIUM_PID }}
+          VC_SAISON_SID:             ${{ secrets.VC_SAISON_SID }}
+          VC_SAISON_PID:             ${{ secrets.VC_SAISON_PID }}
+          # Direct affiliates
+          ANA_AFF_ID:                ${{ secrets.ANA_AFF_ID }}
+          JAL_AFF_ID:                ${{ secrets.JAL_AFF_ID }}
+          JRE_AFF_ID:                ${{ secrets.JRE_AFF_ID }}
+          TOKYU_AFF_ID:              ${{ secrets.TOKYU_AFF_ID }}
+          MITSUKOSHI_AFF_ID:         ${{ secrets.MITSUKOSHI_AFF_ID }}
+          AUPAY_AFF_ID:              ${{ secrets.AUPAY_AFF_ID }}
+          MONTBELL_AFF_ID:           ${{ secrets.MONTBELL_AFF_ID }}
+        working-directory: backend
+        run: python -X utf8 -m ${{ matrix.site.module }}
+
+  # ─────────────────────────────────────────────────────────
+  # ② 全スクレイパー完了後に還元率を一括計算
+  # ─────────────────────────────────────────────────────────
+  calc_asset_rate:
+    name: "Calculate asset_rate"
+    runs-on: ubuntu-latest
+    needs: scrape
+    if: always()
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -19,40 +145,29 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
-      - name: Install dependencies
-        run: |
-          pip install -r backend/requirements.txt
-          python -m playwright install --with-deps chromium
+      - name: Install Python dependencies
+        run: pip install -r backend/requirements.txt
 
-      - name: Run Rakuten API sync
+      - name: Calculate asset_rate for new rows
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
-          RAKUTEN_ACCESS_KEY: ${{ secrets.RAKUTEN_ACCESS_KEY }}
-          RAKUTEN_AFFILIATE_ID: ${{ secrets.RAKUTEN_AFFILIATE_ID }}
-          RAKUTEN_APP_URL: ${{ secrets.RAKUTEN_APP_URL }}
-        working-directory: backend
-        run: python -X utf8 -m scrapers.rakuten_api
-
-      - name: Run Furunavi scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        working-directory: backend
-        run: python -X utf8 -m scrapers.furunavi
-
-      - name: Run Satofull scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        working-directory: backend
-        run: python -X utf8 -m scrapers.satofull
-
-      - name: Calculate asset_rate
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         working-directory: backend
         run: python -X utf8 -m scripts.calc_asset_rate
+
+  # ─────────────────────────────────────────────────────────
+  # ③ 失敗時通知
+  # ─────────────────────────────────────────────────────────
+  notify_on_failure:
+    name: "Notify on failure"
+    runs-on: ubuntu-latest
+    needs: [scrape, calc_asset_rate]
+    if: failure()
+    steps:
+      - name: Report failed jobs
+        run: |
+          echo "::error::スクレイパーまたは還元率計算に失敗しました。"
+          echo "scrape result   : ${{ needs.scrape.result }}"
+          echo "calc_rate result: ${{ needs.calc_asset_rate.result }}"

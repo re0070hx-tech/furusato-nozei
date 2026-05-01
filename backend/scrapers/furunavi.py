@@ -97,6 +97,7 @@ def _scrape_page(page: Page, category_id: int, category: str, p: int) -> list[di
 
 class FuranaviScraper(BaseScraper):
     site_name = "ふるなび"
+    site_id   = "furunavi"
 
     def run_sync(self, pages_per_category: int = 3) -> int:
         total = 0

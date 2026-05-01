@@ -107,6 +107,7 @@ def _scrape_page(page: Page, cat: str, category: str, p: int) -> list[dict]:
 
 class SatofullScraper(BaseScraper):
     site_name = "さとふる"
+    site_id   = "satofull"
 
     def run_sync(self, pages_per_category: int = 3) -> int:
         total = 0
