@@ -86,7 +86,11 @@ def run(dry_run: bool = False) -> int:
                 })
 
         if updates and not dry_run:
-            client.table("products").upsert(updates, on_conflict="id").execute()
+            for up in updates:
+                client.table("products").update({
+                    "asset_rate": up["asset_rate"],
+                    "market_price": up["market_price"]
+                }).eq("id", up["id"]).execute()
 
         total_updated += len(updates)
         log.info("offset=%d: %d件処理 (うち更新=%d件)", offset, len(rows), len(updates))

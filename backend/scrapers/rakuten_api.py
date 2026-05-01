@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 import requests
+from supabase import create_client, Client
 from dotenv import load_dotenv
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
