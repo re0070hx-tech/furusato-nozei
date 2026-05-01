@@ -33,27 +33,27 @@ jobs:
           - { id: rakuten,         module: scrapers.rakuten_api,     type: api,        active: true  }
           - { id: furunavi,        module: scrapers.furunavi,        type: playwright, active: true  }
           - { id: satofull,        module: scrapers.satofull,        type: playwright, active: true  }
-          # ── 未実装 (スクレイパー完成後に active: true へ変更) ───
+          - { id: dshopping,         module: scrapers.dshopping,       type: playwright, active: true  }
           - { id: amazon,          module: scrapers.amazon,          type: playwright, active: true  }
           - { id: furusato_choice, module: scrapers.furusato_choice, type: playwright, active: true  }
-          - { id: ana,             module: scrapers.ana,             type: playwright, active: false }
-          - { id: jal,             module: scrapers.jal,             type: playwright, active: false }
-          - { id: mynavi,          module: scrapers.mynavi,          type: playwright, active: false }
-          - { id: furu_premium,    module: scrapers.furu_premium,    type: playwright, active: false }
-          - { id: furu_lab,        module: scrapers.furu_lab,        type: playwright, active: false }
-          - { id: mitsukoshi,      module: scrapers.mitsukoshi,      type: playwright, active: false }
-          - { id: aupay,           module: scrapers.aupay,           type: playwright, active: false }
-          - { id: saison,          module: scrapers.saison,          type: playwright, active: false }
-          - { id: jre_mall,        module: scrapers.jre_mall,        type: playwright, active: false }
+          - { id: ana,             module: scrapers.ana,             type: playwright, active: true }
+          - { id: jal,             module: scrapers.jal,             type: playwright, active: true }
+          - { id: mynavi,          module: scrapers.mynavi,          type: playwright, active: true }
+          - { id: furu_premium,    module: scrapers.furu_premium,    type: playwright, active: true }
+          - { id: furu_lab,        module: scrapers.furu_lab,        type: playwright, active: true }
+          - { id: mitsukoshi,      module: scrapers.mitsukoshi,      type: playwright, active: true }
+          - { id: aupay,           module: scrapers.aupay,           type: playwright, active: true }
+          - { id: saison,          module: scrapers.saison,          type: playwright, active: true }
+          - { id: jre_mall,        module: scrapers.jre_mall,        type: playwright, active: true }
           - { id: honpo,           module: scrapers.honpo,           type: playwright, active: true  }
           - { id: pokemaru,        module: scrapers.pokemaru,        type: playwright, active: true  }
           - { id: whiskey_furusato, module: scrapers.whiskey_furusato, type: playwright, active: true }
-          - { id: palette,         module: scrapers.palette,         type: playwright, active: false }
-          - { id: hyakusen,        module: scrapers.hyakusen,        type: playwright, active: false }
-          - { id: tokyu,           module: scrapers.tokyu,           type: playwright, active: false }
-          - { id: qoo10,           module: scrapers.qoo10,           type: playwright, active: false }
-          - { id: montbell,        module: scrapers.montbell,        type: playwright, active: false }
-          - { id: yell,            module: scrapers.yell,            type: playwright, active: false }
+          - { id: palette,         module: scrapers.palette,         type: playwright, active: true }
+          - { id: hyakusen,        module: scrapers.hyakusen,        type: playwright, active: true }
+          - { id: tokyu,           module: scrapers.tokyu,           type: playwright, active: true }
+          - { id: qoo10,           module: scrapers.qoo10,           type: playwright, active: true }
+          - { id: montbell,        module: scrapers.montbell,        type: playwright, active: true }
+          - { id: yell,            module: scrapers.yell,            type: playwright, active: true }
 
     steps:
       # active フラグと手動指定フィルタをステップレベルで判定
