@@ -9,24 +9,40 @@ interface Props {
 }
 
 export function getSiteBadgeStyle(siteId: string | null, siteName: string): { bg: string; color: string } {
-  const id = siteId ?? siteName;
-  if (id.includes("rakuten")  || siteName.includes("楽天"))       return { bg: "#FFE8E8", color: "#C0392B" };
-  if (id.includes("furunavi") || siteName.includes("ふるなび"))    return { bg: "#E8F2FF", color: "#1A5FA8" };
-  if (id.includes("satofull") || siteName.includes("さとふる"))    return { bg: "#FFF4E0", color: "#B35900" };
-  if (id.includes("furusato_choice"))                              return { bg: "#E8F5E9", color: "#2E7D32" };
-  if (id.includes("ana"))                                          return { bg: "#E3F2FD", color: "#0066CC" };
-  if (id.includes("jal"))                                          return { bg: "#FFEBEE", color: "#CC0000" };
-  if (id.includes("mynavi"))                                       return { bg: "#FCE4EC", color: "#E91E63" };
-  if (id.includes("furu_premium"))                                 return { bg: "#F3E5F5", color: "#7B1FA2" };
-  if (id.includes("aupay"))                                        return { bg: "#FFF3E0", color: "#FF6600" };
-  if (id.includes("saison"))                                       return { bg: "#E3F2FD", color: "#003F8A" };
-  if (id.includes("jre_mall"))                                     return { bg: "#E8F5E9", color: "#009933" };
-  if (id.includes("mitsukoshi"))                                   return { bg: "#FFEBEE", color: "#8B0000" };
+  const id = (siteId ?? siteName).toLowerCase();
+  if (id.includes("rakuten")         || siteName.includes("楽天"))               return { bg: "#FFE8E8", color: "#C0392B" };
+  if (id.includes("furunavi")        || siteName.includes("ふるなび"))            return { bg: "#E8F2FF", color: "#1A5FA8" };
+  if (id.includes("satofull")        || siteName.includes("さとふる"))            return { bg: "#FFF4E0", color: "#B35900" };
+  if (id.includes("furusato_choice") || siteName.includes("チョイス"))           return { bg: "#E8F5E9", color: "#2E7D32" };
+  if (id.includes("amazon")          || siteName.includes("Amazon"))             return { bg: "#FFF8E1", color: "#E65100" };
+  if (id.includes("dshopping")       || siteName.includes("dショッピング"))       return { bg: "#FFEBEE", color: "#E53935" };
+  if (id.includes("pokemaru")        || siteName.includes("ポケマル"))            return { bg: "#FFF3E0", color: "#FF6F00" };
+  if (id.includes("whiskey")         || siteName.includes("ウイスキー"))          return { bg: "#EFEBE9", color: "#4E342E" };
+  if (id.includes("honpo")           || siteName.includes("本舗"))               return { bg: "#EFEBE9", color: "#795548" };
+  if (id.includes("ana")             || siteName.includes("ANA"))                return { bg: "#E3F2FD", color: "#0066CC" };
+  if (id.includes("jal")             || siteName.includes("JAL"))                return { bg: "#FFEBEE", color: "#CC0000" };
+  if (id.includes("mynavi")          || siteName.includes("マイナビ"))            return { bg: "#FCE4EC", color: "#E91E63" };
+  if (id.includes("furu_premium")    || siteName.includes("プレミアム"))          return { bg: "#F3E5F5", color: "#7B1FA2" };
+  if (id.includes("furu_lab")        || siteName.includes("ラボ"))               return { bg: "#FBE9E7", color: "#FF5722" };
+  if (id.includes("mitsukoshi")      || siteName.includes("三越"))               return { bg: "#FFEBEE", color: "#8B0000" };
+  if (id.includes("aupay")           || siteName.includes("au PAY"))             return { bg: "#FFF3E0", color: "#FF6600" };
+  if (id.includes("saison")          || siteName.includes("セゾン"))              return { bg: "#E3F2FD", color: "#003F8A" };
+  if (id.includes("jre_mall")        || siteName.includes("JRE"))                return { bg: "#E8F5E9", color: "#009933" };
+  if (id.includes("palette")         || siteName.includes("パレット"))            return { bg: "#F3E5F5", color: "#9C27B0" };
+  if (id.includes("hyakusen")        || siteName.includes("百選"))               return { bg: "#FBE9E7", color: "#E65100" };
+  if (id.includes("tokyu")           || siteName.includes("東急"))               return { bg: "#FFEBEE", color: "#CF2020" };
+  if (id.includes("qoo10")           || siteName.includes("Qoo10"))              return { bg: "#FCE4EC", color: "#FF4081" };
+  if (id.includes("montbell")        || siteName.includes("モンベル"))            return { bg: "#E3F2FD", color: "#1565C0" };
+  if (id.includes("yell")            || siteName.includes("エール"))              return { bg: "#E8F5E9", color: "#4CAF50" };
   return { bg: "#F5F5F5", color: "#555555" };
 }
 
 export default function ProductCard({ product, withPoints = false }: Props) {
-  const { title, site_id, site_name, category, donation_amount, volume_g, asset_rate, product_url, affiliate_url, image_url } = product;
+  const {
+    title, site_id, site_name, category,
+    donation_amount, volume_g, asset_rate,
+    product_url, affiliate_url, image_url,
+  } = product;
 
   const destUrl = affiliate_url ?? product_url;
 
@@ -44,7 +60,9 @@ export default function ProductCard({ product, withPoints = false }: Props) {
     : null;
 
   const weightLabel = volume_g != null
-    ? volume_g >= 1000 ? `${(volume_g / 1000).toFixed(1).replace(/\.0$/, "")}kg` : `${volume_g}g`
+    ? volume_g >= 1000
+      ? `${(volume_g / 1000).toFixed(1).replace(/\.0$/, "")}kg`
+      : `${volume_g}g`
     : null;
 
   const badgeStyle = getSiteBadgeStyle(site_id, site_name);
@@ -72,7 +90,10 @@ export default function ProductCard({ product, withPoints = false }: Props) {
             loading="lazy"
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-3xl" style={{ background: "var(--green-100)" }}>
+          <div
+            className="absolute inset-0 flex items-center justify-center text-3xl"
+            style={{ background: "var(--green-100)" }}
+          >
             🍱
           </div>
         )}
@@ -122,12 +143,18 @@ export default function ProductCard({ product, withPoints = false }: Props) {
           </div>
           <div className="flex flex-col items-end gap-0.5">
             {weightLabel && (
-              <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--bg-2)", color: "var(--text-2)" }}>
+              <span
+                className="text-xs font-mono px-1.5 py-0.5 rounded"
+                style={{ background: "var(--bg-2)", color: "var(--text-2)" }}
+              >
                 {weightLabel}
               </span>
             )}
             {costEfficiency != null && (
-              <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--green-100)", color: "var(--forest-md)" }}>
+              <span
+                className="text-xs font-mono px-1.5 py-0.5 rounded"
+                style={{ background: "var(--green-100)", color: "var(--forest-md)" }}
+              >
                 {costEfficiency.toLocaleString()}g/万
               </span>
             )}
