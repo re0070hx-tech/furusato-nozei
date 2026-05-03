@@ -2,8 +2,10 @@
 JRE MALLふるさと納税スクレイパー
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-URL 構造: https://furusato.jreast.co.jp/items?category={id}&page={p}
-商品 ID: URL パス /items/{product_id}
+確認済みURL構造 (2026-05):
+  一覧: https://furusato.jreast.co.jp/furusato/prd/?sc={category_code}&page={p}
+  商品: https://furusato.jreast.co.jp/furusato/prd/{product_id}/
+  カテゴリコード: cat1=肉, cat2=魚, cat3=米・穀物, cat4=果物, cat5=野菜, cat8=家電
 """
 from __future__ import annotations
 
@@ -20,13 +22,14 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://furusato.jreast.co.jp"
 
+# (sc パラメータ, category_label)
 CATEGORIES: list[tuple[str, str]] = [
-    ("1", "肉"),
-    ("2", "魚"),
-    ("3", "果物"),
-    ("4", "野菜"),
-    ("5", "米"),
-    ("9", "家電"),
+    ("cat1", "肉"),
+    ("cat2", "魚"),
+    ("cat3", "米"),
+    ("cat4", "果物"),
+    ("cat5", "野菜"),
+    ("cat8", "家電"),
 ]
 
 _USER_AGENT = (
@@ -35,7 +38,7 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"/items/(\w[\w-]*)")
+_PID_RE = re.compile(r"/furusato/prd/([^/?]+)")
 _PRICE_RE = re.compile(r"[\d,]+")
 
 
@@ -45,7 +48,7 @@ def _parse_price(text: str) -> int | None:
 
 
 def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/items/']")
+    link_el = card.query_selector("a[href*='/furusato/prd/']")
     if not link_el:
         return None
     href = link_el.get_attribute("href") or ""
@@ -53,21 +56,28 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     if not m:
         return None
     pid = m.group(1)
-    product_url = urljoin(BASE_URL, href.split("?")[0])
+    product_url = urljoin(BASE_URL, f"/furusato/prd/{pid}/")
 
     title_el = (
-        card.query_selector(".item-name")
-        or card.query_selector(".product-name")
+        card.query_selector("[class*='product-name']")
+        or card.query_selector("[class*='item-name']")
+        or card.query_selector("[class*='goods-name']")
         or card.query_selector("h3")
         or card.query_selector("h2")
     )
     title = title_el.inner_text().strip() if title_el else None
+    if not title:
+        # img alt から取得
+        img_el = card.query_selector("img")
+        if img_el:
+            title = (img_el.get_attribute("alt") or "").strip()
     if not title:
         return None
 
     price_el = (
         card.query_selector("[class*='price']")
         or card.query_selector("[class*='amount']")
+        or card.query_selector("[class*='donation']")
     )
     price = _parse_price(price_el.inner_text()) if price_el else None
 
@@ -77,7 +87,8 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
         img_url = img_el.get_attribute("src") or img_el.get_attribute("data-src")
 
     muni_el = (
-        card.query_selector("[class*='city']")
+        card.query_selector("[class*='area']")
+        or card.query_selector("[class*='city']")
         or card.query_selector("[class*='muni']")
         or card.query_selector("[class*='pref']")
     )
@@ -101,19 +112,20 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     }
 
 
-def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    url = f"{BASE_URL}/items?category={cat_id}&page={p}"
+def _scrape_page(page: Page, cat: str, category: str, p: int) -> list[dict]:
+    url = f"{BASE_URL}/furusato/prd/?sc={cat}&page={p}&disp_number=60"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='/items/']", timeout=15_000)
+        page.wait_for_selector("a[href*='/furusato/prd/']", timeout=15_000)
     except Exception:
         log.debug("JRE MALL cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
     cards = (
-        page.query_selector_all("[class*='item-card']")
-        or page.query_selector_all("[class*='product-card']")
+        page.query_selector_all("[class*='product-card']")
+        or page.query_selector_all("[class*='item-card']")
+        or page.query_selector_all("[class*='goods-card']")
         or page.query_selector_all("li[class*='item']")
         or page.query_selector_all("article")
     )
@@ -146,10 +158,10 @@ class JreMallScraper(BaseScraper):
             )
             page = ctx.new_page()
 
-            for cat_id, cat_name in CATEGORIES:
+            for cat, cat_name in CATEGORIES:
                 for p in range(1, pages_per_category + 1):
                     try:
-                        rows = _scrape_page(page, cat_id, cat_name, p)
+                        rows = _scrape_page(page, cat, cat_name, p)
                         if not rows:
                             break
                         n = self.upsert_batch(rows)

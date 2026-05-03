@@ -1,9 +1,9 @@
 """
-セゾンのふるさと納税スクレイパー
+ANAふるさと納税スクレイパー
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-URL 構造: https://furusato.saisoncard.co.jp/products?category_id={id}&page={p}
-商品 ID: URL パス /products/{product_id}
+URL 構造: https://furusato.ana.co.jp/products?category={cat}&page={p}
+商品 ID: URL パス /products/{product_id} の末尾セグメント
 """
 from __future__ import annotations
 
@@ -18,16 +18,16 @@ from lib.volume_extractor import extract_volume_g
 
 log = logging.getLogger(__name__)
 
-BASE_URL = "https://furusato.saisoncard.co.jp"
+BASE_URL = "https://furusato.ana.co.jp"
 
-# category_group_id (確認済み: /products/list.php?category_group_id={id})
+# (カテゴリスラッグ, category_label)
 CATEGORIES: list[tuple[str, str]] = [
-    ("1",  "肉"),
-    ("2",  "魚"),
-    ("3",  "果物"),
-    ("4",  "野菜"),
-    ("5",  "米"),
-    ("8",  "家電"),
+    ("beef",     "肉"),
+    ("seafood",  "魚"),
+    ("fruit",    "果物"),
+    ("vegetable","野菜"),
+    ("rice",     "米"),
+    ("appliance","家電"),
 ]
 
 _USER_AGENT = (
@@ -36,18 +36,17 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"product_id=(\d+)")
-_CLEAN_URL_RE = re.compile(r"[?&]")
+_PID_RE = re.compile(r"/products/(\d+)")
 _PRICE_RE = re.compile(r"[\d,]+")
 
 
 def _parse_price(text: str) -> int | None:
-    digits = re.sub(r"[^\d]", "", text)
-    return int(digits) if digits else None
+    m = _PRICE_RE.search(text.replace(",", ""))
+    return int(m.group()) if m else None
 
 
 def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='product_id=']")
+    link_el = card.query_selector("a[href*='/products/']")
     if not link_el:
         return None
     href = link_el.get_attribute("href") or ""
@@ -55,11 +54,11 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     if not m:
         return None
     pid = m.group(1)
-    product_url = urljoin(BASE_URL, f"/products/detail.php?product_id={pid}")
+    product_url = urljoin(BASE_URL, href.split("?")[0])
 
     title_el = (
         card.query_selector(".product-name")
-        or card.query_selector("[class*='name']")
+        or card.query_selector(".item-name")
         or card.query_selector("h3")
         or card.query_selector("h2")
     )
@@ -68,28 +67,29 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
         return None
 
     price_el = (
-        card.query_selector("[class*='price']")
+        card.query_selector(".price")
+        or card.query_selector(".donation-amount")
+        or card.query_selector("[class*='price']")
         or card.query_selector("[class*='amount']")
     )
     price = _parse_price(price_el.inner_text()) if price_el else None
 
     img_el = card.query_selector("img")
-    img_url = None
-    if img_el:
-        img_url = img_el.get_attribute("src") or img_el.get_attribute("data-src")
+    img_url = img_el.get_attribute("src") if img_el else None
 
     muni_el = (
-        card.query_selector("[class*='city']")
+        card.query_selector(".municipality")
+        or card.query_selector(".city-name")
         or card.query_selector("[class*='muni']")
-        or card.query_selector("[class*='pref']")
+        or card.query_selector("[class*='city']")
     )
     municipality = muni_el.inner_text().strip() if muni_el else None
 
     volume_g = extract_volume_g(title)
 
     return {
-        "id":               f"saison_{pid}",
-        "site_name":        "セゾンのふるさと納税",
+        "id":               f"ana_{pid}",
+        "site_name":        "ANAふるさと納税",
         "title":            title,
         "donation_amount":  price,
         "volume_g":         volume_g,
@@ -103,22 +103,25 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     }
 
 
-def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    # 確認済みURL: /products/list.php?category_group_id={id}&pageno={p}
-    url = f"{BASE_URL}/products/list.php?category_group_id={cat_id}&pageno={p}"
+def _scrape_page(page: Page, cat: str, category: str, p: int) -> list[dict]:
+    url = f"{BASE_URL}/products?category={cat}&page={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='product_id=']", timeout=15_000)
+        page.wait_for_selector(
+            "a[href*='/products/']",
+            timeout=15_000,
+        )
     except Exception:
-        log.debug("セゾン cat=%s p=%d: 商品カード未検出", category, p)
+        log.debug("ANA cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
+    # カード候補: li / article / div[class*=card] / div[class*=item]
     cards = (
-        page.query_selector_all("[class*='product-card']")
-        or page.query_selector_all("[class*='item-card']")
-        or page.query_selector_all("li[class*='item']")
+        page.query_selector_all("li[class*='item']")
         or page.query_selector_all("article")
+        or page.query_selector_all("[class*='product-card']")
+        or page.query_selector_all("[class*='item-card']")
     )
 
     seen: set[str] = set()
@@ -134,9 +137,9 @@ def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
     return rows
 
 
-class SaisonScraper(BaseScraper):
-    site_name = "セゾンのふるさと納税"
-    site_id   = "saison"
+class AnaScraper(BaseScraper):
+    site_name = "ANAふるさと納税"
+    site_id   = "ana"
 
     def run_sync(self, pages_per_category: int = 3) -> int:
         total = 0
@@ -149,26 +152,26 @@ class SaisonScraper(BaseScraper):
             )
             page = ctx.new_page()
 
-            for cat_id, cat_name in CATEGORIES:
+            for cat, cat_name in CATEGORIES:
                 for p in range(1, pages_per_category + 1):
                     try:
-                        rows = _scrape_page(page, cat_id, cat_name, p)
+                        rows = _scrape_page(page, cat, cat_name, p)
                         if not rows:
                             break
                         n = self.upsert_batch(rows)
                         total += n
-                        log.info("セゾン cat=%s p=%d: %d件 upsert", cat_name, p, n)
+                        log.info("ANA cat=%s p=%d: %d件 upsert", cat_name, p, n)
                     except Exception as e:
-                        log.warning("セゾン cat=%s p=%d エラー: %s", cat_name, p, e)
+                        log.warning("ANA cat=%s p=%d エラー: %s", cat_name, p, e)
                         break
                     self.sleep()
 
             browser.close()
 
-        log.info("セゾン 完了: 合計 %d件", total)
+        log.info("ANA 完了: 合計 %d件", total)
         return total
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    SaisonScraper().run_sync()
+    AnaScraper().run_sync()

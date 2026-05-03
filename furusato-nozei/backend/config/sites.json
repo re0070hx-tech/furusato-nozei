@@ -92,6 +92,188 @@
       "sort_order": 5
     },
     {
+      "id": "ana",
+      "display_name": "ANAふるさと納税",
+      "base_url": "https://furusato.ana.co.jp",
+      "affiliate_asp": "direct",
+      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
+      "env_vars": {
+        "AFF_ID": "ANA_AFF_ID"
+      },
+      "color": "#0066CC",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "✈️",
+      "default_point_type": "ANAマイル",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.ana",
+      "is_active": false,
+      "sort_order": 5
+    },
+    {
+      "id": "jal",
+      "display_name": "JALふるさと納税",
+      "base_url": "https://furusato.jal.co.jp",
+      "affiliate_asp": "direct",
+      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
+      "env_vars": {
+        "AFF_ID": "JAL_AFF_ID"
+      },
+      "color": "#CC0000",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "✈️",
+      "default_point_type": "JALマイル",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.jal",
+      "is_active": false,
+      "sort_order": 6
+    },
+    {
+      "id": "mynavi",
+      "display_name": "マイナビふるさと納税",
+      "base_url": "https://furusato.mynavi.jp",
+      "affiliate_asp": "a8",
+      "affiliate_template": "https://px.a8.net/svt/ejp?a8mat={AFF_ID}&a8ejpredirect={PRODUCT_URL}",
+      "env_vars": {
+        "AFF_ID": "A8_MYNAVI_ID"
+      },
+      "color": "#E91E63",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "💼",
+      "default_point_type": "マイナビポイント",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.mynavi",
+      "is_active": false,
+      "sort_order": 7
+    },
+    {
+      "id": "furu_premium",
+      "display_name": "ふるプレミアム",
+      "base_url": "https://furupremium.jp",
+      "affiliate_asp": "valuecommerce",
+      "affiliate_template": "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid={SID}&pid={PID}&vc_url={PRODUCT_URL}",
+      "env_vars": {
+        "SID": "VC_FURUPREMIUM_SID",
+        "PID": "VC_FURUPREMIUM_PID"
+      },
+      "color": "#7B1FA2",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "✨",
+      "default_point_type": "選択制",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.furu_premium",
+      "is_active": false,
+      "sort_order": 8
+    },
+    {
+      "id": "furu_lab",
+      "display_name": "ふるラボ",
+      "base_url": "https://furulab.tv",
+      "affiliate_asp": "a8",
+      "affiliate_template": "https://px.a8.net/svt/ejp?a8mat={AFF_ID}&a8ejpredirect={PRODUCT_URL}",
+      "env_vars": {
+        "AFF_ID": "A8_FURULAB_ID"
+      },
+      "color": "#FF5722",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "🧪",
+      "default_point_type": "選択制",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.furu_lab",
+      "is_active": false,
+      "sort_order": 9
+    },
+    {
+      "id": "mitsukoshi",
+      "display_name": "三越伊勢丹",
+      "base_url": "https://furusato.mistore.jp",
+      "affiliate_asp": "direct",
+      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
+      "env_vars": {
+        "AFF_ID": "MITSUKOSHI_AFF_ID"
+      },
+      "color": "#8B0000",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "🏬",
+      "default_point_type": "三越伊勢丹ポイント",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.mitsukoshi",
+      "is_active": false,
+      "sort_order": 10
+    },
+    {
+      "id": "aupay",
+      "display_name": "au PAY",
+      "base_url": "https://furusato.au.com",
+      "affiliate_asp": "direct",
+      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
+      "env_vars": {
+        "AFF_ID": "AUPAY_AFF_ID"
+      },
+      "color": "#FF6600",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "📱",
+      "default_point_type": "Pontaポイント",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.aupay",
+      "is_active": false,
+      "sort_order": 11
+    },
+    {
+      "id": "saison",
+      "display_name": "セゾンのふるさと納税",
+      "base_url": "https://furusato.saisoncard.co.jp",
+      "affiliate_asp": "valuecommerce",
+      "affiliate_template": "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid={SID}&pid={PID}&vc_url={PRODUCT_URL}",
+      "env_vars": {
+        "SID": "VC_SAISON_SID",
+        "PID": "VC_SAISON_PID"
+      },
+      "color": "#003F8A",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "💳",
+      "default_point_type": "永久不滅ポイント",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.saison",
+      "is_active": false,
+      "sort_order": 12
+    },
+    {
+      "id": "jre_mall",
+      "display_name": "JRE MALL",
+      "base_url": "https://furusato.jreast.co.jp",
+      "affiliate_asp": "direct",
+      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
+      "env_vars": {
+        "AFF_ID": "JRE_AFF_ID"
+      },
+      "color": "#009933",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "🚃",
+      "default_point_type": "JREポイント",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.jre_mall",
+      "is_active": false,
+      "sort_order": 13
+    },
+    {
+      "id": "honpo",
+      "display_name": "ふるさと本舗",
+      "base_url": "https://furusatohonpo.jp",
+      "affiliate_asp": "a8",
+      "affiliate_template": "https://px.a8.net/svt/ejp?a8mat={AFF_ID}&a8ejpredirect={PRODUCT_URL}",
+      "env_vars": {
+        "AFF_ID": "A8_HONPO_ID"
+      },
+      "color": "#795548",
+      "text_color": "#FFFFFF",
+      "logo_emoji": "🏪",
+      "default_point_type": "選択制",
+      "scraper_type": "playwright",
+      "scraper_module": "scrapers.honpo",
+      "is_active": true,
+      "sort_order": 14
+    },
+    {
       "id": "pokemaru",
       "display_name": "ポケマルふるさと納税",
       "base_url": "https://poke-m.com",
@@ -124,204 +306,6 @@
       "sort_order": 7
     },
     {
-      "id": "dshopping",
-      "display_name": "dショッピングふるさと納税",
-      "base_url": "https://dshopping-furusato.docomo.ne.jp",
-      "affiliate_asp": "direct",
-      "affiliate_template": "{PRODUCT_URL}",
-      "env_vars": {},
-      "color": "#E53935",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "📱",
-      "default_point_type": "dポイント",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.dshopping",
-      "is_active": true,
-      "sort_order": 8
-    },
-    {
-      "id": "honpo",
-      "display_name": "ふるさと本舗",
-      "base_url": "https://furusatohonpo.jp",
-      "affiliate_asp": "a8",
-      "affiliate_template": "https://px.a8.net/svt/ejp?a8mat={AFF_ID}&a8ejpredirect={PRODUCT_URL}",
-      "env_vars": {
-        "AFF_ID": "A8_HONPO_ID"
-      },
-      "color": "#795548",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "🏪",
-      "default_point_type": "選択制",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.honpo",
-      "is_active": true,
-      "sort_order": 9
-    },
-    {
-      "id": "ana",
-      "display_name": "ANAふるさと納税",
-      "base_url": "https://furusato.ana.co.jp",
-      "affiliate_asp": "direct",
-      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
-      "env_vars": {
-        "AFF_ID": "ANA_AFF_ID"
-      },
-      "color": "#0066CC",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "✈️",
-      "default_point_type": "ANAマイル",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.ana",
-      "is_active": true,
-      "sort_order": 10
-    },
-    {
-      "id": "jal",
-      "display_name": "JALふるさと納税",
-      "base_url": "https://furusato.jal.co.jp",
-      "affiliate_asp": "direct",
-      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
-      "env_vars": {
-        "AFF_ID": "JAL_AFF_ID"
-      },
-      "color": "#CC0000",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "✈️",
-      "default_point_type": "JALマイル",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.jal",
-      "is_active": true,
-      "sort_order": 11
-    },
-    {
-      "id": "mynavi",
-      "display_name": "マイナビふるさと納税",
-      "base_url": "https://furusato.mynavi.jp",
-      "affiliate_asp": "a8",
-      "affiliate_template": "https://px.a8.net/svt/ejp?a8mat={AFF_ID}&a8ejpredirect={PRODUCT_URL}",
-      "env_vars": {
-        "AFF_ID": "A8_MYNAVI_ID"
-      },
-      "color": "#E91E63",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "💼",
-      "default_point_type": "マイナビポイント",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.mynavi",
-      "is_active": false,
-      "sort_order": 12
-    },
-    {
-      "id": "furu_premium",
-      "display_name": "ふるプレミアム",
-      "base_url": "https://furupremium.jp",
-      "affiliate_asp": "valuecommerce",
-      "affiliate_template": "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid={SID}&pid={PID}&vc_url={PRODUCT_URL}",
-      "env_vars": {
-        "SID": "VC_FURUPREMIUM_SID",
-        "PID": "VC_FURUPREMIUM_PID"
-      },
-      "color": "#7B1FA2",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "✨",
-      "default_point_type": "選択制",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.furu_premium",
-      "is_active": false,
-      "sort_order": 13
-    },
-    {
-      "id": "furu_lab",
-      "display_name": "ふるラボ",
-      "base_url": "https://furulab.tv",
-      "affiliate_asp": "a8",
-      "affiliate_template": "https://px.a8.net/svt/ejp?a8mat={AFF_ID}&a8ejpredirect={PRODUCT_URL}",
-      "env_vars": {
-        "AFF_ID": "A8_FURULAB_ID"
-      },
-      "color": "#FF5722",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "🧪",
-      "default_point_type": "選択制",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.furu_lab",
-      "is_active": false,
-      "sort_order": 14
-    },
-    {
-      "id": "mitsukoshi",
-      "display_name": "三越伊勢丹",
-      "base_url": "https://furusato.mistore.jp",
-      "affiliate_asp": "direct",
-      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
-      "env_vars": {
-        "AFF_ID": "MITSUKOSHI_AFF_ID"
-      },
-      "color": "#8B0000",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "🏬",
-      "default_point_type": "三越伊勢丹ポイント",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.mitsukoshi",
-      "is_active": false,
-      "sort_order": 15
-    },
-    {
-      "id": "aupay",
-      "display_name": "au PAY",
-      "base_url": "https://furusato.au.com",
-      "affiliate_asp": "direct",
-      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
-      "env_vars": {
-        "AFF_ID": "AUPAY_AFF_ID"
-      },
-      "color": "#FF6600",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "📱",
-      "default_point_type": "Pontaポイント",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.aupay",
-      "is_active": false,
-      "sort_order": 16
-    },
-    {
-      "id": "saison",
-      "display_name": "セゾンのふるさと納税",
-      "base_url": "https://furusato.saisoncard.co.jp",
-      "affiliate_asp": "valuecommerce",
-      "affiliate_template": "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid={SID}&pid={PID}&vc_url={PRODUCT_URL}",
-      "env_vars": {
-        "SID": "VC_SAISON_SID",
-        "PID": "VC_SAISON_PID"
-      },
-      "color": "#003F8A",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "💳",
-      "default_point_type": "永久不滅ポイント",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.saison",
-      "is_active": true,
-      "sort_order": 17
-    },
-    {
-      "id": "jre_mall",
-      "display_name": "JRE MALL",
-      "base_url": "https://furusato.jreast.co.jp",
-      "affiliate_asp": "direct",
-      "affiliate_template": "{PRODUCT_URL}?aff={AFF_ID}",
-      "env_vars": {
-        "AFF_ID": "JRE_AFF_ID"
-      },
-      "color": "#009933",
-      "text_color": "#FFFFFF",
-      "logo_emoji": "🚃",
-      "default_point_type": "JREポイント",
-      "scraper_type": "playwright",
-      "scraper_module": "scrapers.jre_mall",
-      "is_active": true,
-      "sort_order": 18
-    },
-    {
       "id": "palette",
       "display_name": "パレットふるさと",
       "base_url": "https://palette-furusato.com",
@@ -337,7 +321,7 @@
       "scraper_type": "playwright",
       "scraper_module": "scrapers.palette",
       "is_active": false,
-      "sort_order": 19
+      "sort_order": 15
     },
     {
       "id": "hyakusen",
@@ -355,7 +339,7 @@
       "scraper_type": "playwright",
       "scraper_module": "scrapers.hyakusen",
       "is_active": false,
-      "sort_order": 20
+      "sort_order": 16
     },
     {
       "id": "tokyu",
@@ -373,7 +357,7 @@
       "scraper_type": "playwright",
       "scraper_module": "scrapers.tokyu",
       "is_active": false,
-      "sort_order": 21
+      "sort_order": 17
     },
     {
       "id": "qoo10",
@@ -390,8 +374,8 @@
       "default_point_type": "Qoo10ポイント",
       "scraper_type": "playwright",
       "scraper_module": "scrapers.qoo10",
-      "is_active": true,
-      "sort_order": 22
+      "is_active": false,
+      "sort_order": 18
     },
     {
       "id": "montbell",
@@ -408,8 +392,8 @@
       "default_point_type": "モンベルポイント",
       "scraper_type": "playwright",
       "scraper_module": "scrapers.montbell",
-      "is_active": true,
-      "sort_order": 23
+      "is_active": false,
+      "sort_order": 19
     },
     {
       "id": "yell",
@@ -427,7 +411,7 @@
       "scraper_type": "playwright",
       "scraper_module": "scrapers.yell",
       "is_active": false,
-      "sort_order": 24
+      "sort_order": 20
     }
   ]
 }

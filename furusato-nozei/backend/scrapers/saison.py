@@ -20,14 +20,13 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://furusato.saisoncard.co.jp"
 
-# category_group_id (確認済み: /products/list.php?category_group_id={id})
 CATEGORIES: list[tuple[str, str]] = [
     ("1",  "肉"),
     ("2",  "魚"),
     ("3",  "果物"),
     ("4",  "野菜"),
     ("5",  "米"),
-    ("8",  "家電"),
+    ("12", "家電"),
 ]
 
 _USER_AGENT = (
@@ -36,8 +35,7 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"product_id=(\d+)")
-_CLEAN_URL_RE = re.compile(r"[?&]")
+_PID_RE = re.compile(r"/products/(\d+)")
 _PRICE_RE = re.compile(r"[\d,]+")
 
 
@@ -47,7 +45,7 @@ def _parse_price(text: str) -> int | None:
 
 
 def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='product_id=']")
+    link_el = card.query_selector("a[href*='/products/']")
     if not link_el:
         return None
     href = link_el.get_attribute("href") or ""
@@ -55,7 +53,7 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     if not m:
         return None
     pid = m.group(1)
-    product_url = urljoin(BASE_URL, f"/products/detail.php?product_id={pid}")
+    product_url = urljoin(BASE_URL, href.split("?")[0])
 
     title_el = (
         card.query_selector(".product-name")
@@ -104,12 +102,11 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
 
 
 def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    # 確認済みURL: /products/list.php?category_group_id={id}&pageno={p}
-    url = f"{BASE_URL}/products/list.php?category_group_id={cat_id}&pageno={p}"
+    url = f"{BASE_URL}/products?category_id={cat_id}&page={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='product_id=']", timeout=15_000)
+        page.wait_for_selector("a[href*='/products/']", timeout=15_000)
     except Exception:
         log.debug("セゾン cat=%s p=%d: 商品カード未検出", category, p)
         return []

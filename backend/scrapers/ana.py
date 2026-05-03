@@ -21,13 +21,15 @@ log = logging.getLogger(__name__)
 BASE_URL = "https://furusato.ana.co.jp"
 
 # (カテゴリスラッグ, category_label)
+# m_tree パラメータ (2026-05 確認済み)
+# /donation/goods/ranking.aspx?search=x&m_tree={id}&term=m
 CATEGORIES: list[tuple[str, str]] = [
-    ("beef",     "肉"),
-    ("seafood",  "魚"),
-    ("fruit",    "果物"),
-    ("vegetable","野菜"),
-    ("rice",     "米"),
-    ("appliance","家電"),
+    ("12",  "肉"),
+    ("13",  "魚"),
+    ("17",  "果物"),
+    ("18",  "野菜"),
+    ("16",  "米"),
+    ("30",  "家電"),
 ]
 
 _USER_AGENT = (
@@ -36,8 +38,7 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"/products/(\d+)")
-_PRICE_RE = re.compile(r"[\d,]+")
+_PID_RE = re.compile(r"/donation/detail/(\w[\w-]*)")
 
 
 def _parse_price(text: str) -> int | None:
@@ -46,7 +47,7 @@ def _parse_price(text: str) -> int | None:
 
 
 def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/products/']")
+    link_el = card.query_selector("a[href*='/donation/detail/']")
     if not link_el:
         return None
     href = link_el.get_attribute("href") or ""
@@ -104,24 +105,27 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
 
 
 def _scrape_page(page: Page, cat: str, category: str, p: int) -> list[dict]:
-    url = f"{BASE_URL}/products?category={cat}&page={p}"
+    # ANA確認済みURL: /donation/goods/ranking.aspx?search=x&m_tree={id}&term=m&page={p}
+    url = (
+        f"{BASE_URL}/donation/goods/ranking.aspx"
+        f"?search=x&m_tree={cat}&term=m&page={p}&dispno=60"
+    )
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
         page.wait_for_selector(
-            "a[href*='/products/']",
+            "a[href*='/donation/detail/']",
             timeout=15_000,
         )
     except Exception:
         log.debug("ANA cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
-    # カード候補: li / article / div[class*=card] / div[class*=item]
     cards = (
-        page.query_selector_all("li[class*='item']")
+        page.query_selector_all("li[class*='p-item']")
+        or page.query_selector_all("li[class*='item']")
+        or page.query_selector_all("ul[class*='list'] > li")
         or page.query_selector_all("article")
-        or page.query_selector_all("[class*='product-card']")
-        or page.query_selector_all("[class*='item-card']")
     )
 
     seen: set[str] = set()

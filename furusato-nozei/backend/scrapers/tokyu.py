@@ -1,8 +1,8 @@
 """
-セゾンのふるさと納税スクレイパー
+東急ふるさと納税スクレイパー
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-URL 構造: https://furusato.saisoncard.co.jp/products?category_id={id}&page={p}
+URL 構造: https://furusato.tokyu.co.jp/products?category={id}&page={p}
 商品 ID: URL パス /products/{product_id}
 """
 from __future__ import annotations
@@ -18,16 +18,15 @@ from lib.volume_extractor import extract_volume_g
 
 log = logging.getLogger(__name__)
 
-BASE_URL = "https://furusato.saisoncard.co.jp"
+BASE_URL = "https://furusato.tokyu.co.jp"
 
-# category_group_id (確認済み: /products/list.php?category_group_id={id})
 CATEGORIES: list[tuple[str, str]] = [
-    ("1",  "肉"),
-    ("2",  "魚"),
-    ("3",  "果物"),
-    ("4",  "野菜"),
-    ("5",  "米"),
-    ("8",  "家電"),
+    ("1", "肉"),
+    ("2", "魚"),
+    ("3", "果物"),
+    ("4", "野菜"),
+    ("5", "米"),
+    ("9", "家電"),
 ]
 
 _USER_AGENT = (
@@ -36,8 +35,7 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"product_id=(\d+)")
-_CLEAN_URL_RE = re.compile(r"[?&]")
+_PID_RE = re.compile(r"/products/(\d+)")
 _PRICE_RE = re.compile(r"[\d,]+")
 
 
@@ -47,7 +45,7 @@ def _parse_price(text: str) -> int | None:
 
 
 def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='product_id=']")
+    link_el = card.query_selector("a[href*='/products/']")
     if not link_el:
         return None
     href = link_el.get_attribute("href") or ""
@@ -55,7 +53,7 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     if not m:
         return None
     pid = m.group(1)
-    product_url = urljoin(BASE_URL, f"/products/detail.php?product_id={pid}")
+    product_url = urljoin(BASE_URL, href.split("?")[0])
 
     title_el = (
         card.query_selector(".product-name")
@@ -81,15 +79,14 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     muni_el = (
         card.query_selector("[class*='city']")
         or card.query_selector("[class*='muni']")
-        or card.query_selector("[class*='pref']")
     )
     municipality = muni_el.inner_text().strip() if muni_el else None
 
     volume_g = extract_volume_g(title)
 
     return {
-        "id":               f"saison_{pid}",
-        "site_name":        "セゾンのふるさと納税",
+        "id":               f"tokyu_{pid}",
+        "site_name":        "東急ふるさと納税",
         "title":            title,
         "donation_amount":  price,
         "volume_g":         volume_g,
@@ -104,14 +101,13 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
 
 
 def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    # 確認済みURL: /products/list.php?category_group_id={id}&pageno={p}
-    url = f"{BASE_URL}/products/list.php?category_group_id={cat_id}&pageno={p}"
+    url = f"{BASE_URL}/products?category={cat_id}&page={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='product_id=']", timeout=15_000)
+        page.wait_for_selector("a[href*='/products/']", timeout=15_000)
     except Exception:
-        log.debug("セゾン cat=%s p=%d: 商品カード未検出", category, p)
+        log.debug("東急 cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
     cards = (
@@ -134,9 +130,9 @@ def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
     return rows
 
 
-class SaisonScraper(BaseScraper):
-    site_name = "セゾンのふるさと納税"
-    site_id   = "saison"
+class TokyuScraper(BaseScraper):
+    site_name = "東急ふるさと納税"
+    site_id   = "tokyu"
 
     def run_sync(self, pages_per_category: int = 3) -> int:
         total = 0
@@ -157,18 +153,18 @@ class SaisonScraper(BaseScraper):
                             break
                         n = self.upsert_batch(rows)
                         total += n
-                        log.info("セゾン cat=%s p=%d: %d件 upsert", cat_name, p, n)
+                        log.info("東急 cat=%s p=%d: %d件 upsert", cat_name, p, n)
                     except Exception as e:
-                        log.warning("セゾン cat=%s p=%d エラー: %s", cat_name, p, e)
+                        log.warning("東急 cat=%s p=%d エラー: %s", cat_name, p, e)
                         break
                     self.sleep()
 
             browser.close()
 
-        log.info("セゾン 完了: 合計 %d件", total)
+        log.info("東急 完了: 合計 %d件", total)
         return total
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    SaisonScraper().run_sync()
+    TokyuScraper().run_sync()

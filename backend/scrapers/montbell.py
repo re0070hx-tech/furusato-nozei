@@ -2,8 +2,11 @@
 モンベルふるさと納税スクレイパー
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-URL 構造: https://furusato.montbell.jp/products?category={id}&page={p}
-商品 ID: URL パス /products/{product_id}
+確認済みURL構造 (2026-05):
+  一覧: https://furusato.montbell.jp/products/search.php?category[{id}]=&sort=1&page={p}
+  カテゴリID: 519=おすすめ, 517=スポーツ・アウトドア, 513=旅行・チケット, 516=衣類,
+              514=日用品, 515=食料品
+  商品URL: /products/disp.php?product_id={id}
 """
 from __future__ import annotations
 
@@ -20,12 +23,13 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://furusato.montbell.jp"
 
-# モンベルはアウトドア用品特化 — 食品カテゴリは少ない
+# (category_id, category_label)
 CATEGORIES: list[tuple[str, str]] = [
-    ("1",  "食料品"),
-    ("2",  "アウトドア用品"),
-    ("3",  "雑貨"),
-    ("4",  "体験"),
+    ("515", "食料品"),
+    ("517", "アウトドア用品"),
+    ("513", "旅行・体験"),
+    ("516", "衣類"),
+    ("514", "日用品"),
 ]
 
 _USER_AGENT = (
@@ -34,7 +38,7 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"/products/(\d+)")
+_PID_RE = re.compile(r"product_id=(\d+)")
 _PRICE_RE = re.compile(r"[\d,]+")
 
 
@@ -44,7 +48,9 @@ def _parse_price(text: str) -> int | None:
 
 
 def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/products/']")
+    link_el = card.query_selector("a[href*='product_id=']")
+    if not link_el:
+        link_el = card.query_selector("a[href*='/products/disp']")
     if not link_el:
         return None
     href = link_el.get_attribute("href") or ""
@@ -52,7 +58,7 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     if not m:
         return None
     pid = m.group(1)
-    product_url = urljoin(BASE_URL, href.split("?")[0])
+    product_url = f"{BASE_URL}/products/disp.php?product_id={pid}"
 
     title_el = (
         card.query_selector(".product-name")
@@ -61,6 +67,10 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
         or card.query_selector("h2")
     )
     title = title_el.inner_text().strip() if title_el else None
+    if not title:
+        img_el = card.query_selector("img")
+        if img_el:
+            title = (img_el.get_attribute("alt") or "").strip()
     if not title:
         return None
 
@@ -77,7 +87,8 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
 
     muni_el = (
         card.query_selector("[class*='city']")
-        or card.query_selector("[class*='muni']")
+        or card.query_selector("[class*='pref']")
+        or card.query_selector("[class*='area']")
     )
     municipality = muni_el.inner_text().strip() if muni_el else None
 
@@ -100,11 +111,15 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
 
 
 def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    url = f"{BASE_URL}/products?category={cat_id}&page={p}"
+    # 確認済みURL: /products/search.php?category[{id}]=&sort=1&page={p}
+    url = f"{BASE_URL}/products/search.php?category[{cat_id}]=&sort=1&page={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='/products/']", timeout=15_000)
+        page.wait_for_selector(
+            "a[href*='product_id='], a[href*='/products/disp']",
+            timeout=15_000,
+        )
     except Exception:
         log.debug("モンベル cat=%s p=%d: 商品カード未検出", category, p)
         return []
@@ -113,6 +128,7 @@ def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
         page.query_selector_all("[class*='product-card']")
         or page.query_selector_all("[class*='item-card']")
         or page.query_selector_all("li[class*='item']")
+        or page.query_selector_all("ul[class*='list'] > li")
         or page.query_selector_all("article")
     )
 

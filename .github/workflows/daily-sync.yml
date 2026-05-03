@@ -13,10 +13,7 @@ on:
 
 jobs:
   # ─────────────────────────────────────────────────────────
-  # ① 20サイト全てを matrix に列挙し、active: true のもののみ実行
-  #    新サイトのスクレイパーが完成したら active: false → true に変更する
-  #    ※ VS Code の YAML linter が job-level if の matrix 参照を警告することが
-  #       あるが、GitHub Actions 実行時は正しく評価されるため無視してよい
+  # ① 全サイトを matrix で並列実行
   # ─────────────────────────────────────────────────────────
   scrape:
     name: "Scrape: ${{ matrix.site.id }}"
@@ -30,34 +27,33 @@ jobs:
       matrix:
         site:
           # ── アクティブ (スクレイパー実装済み) ──────────────────
-          - { id: rakuten,         module: scrapers.rakuten_api,     type: api,        active: true  }
-          - { id: furunavi,        module: scrapers.furunavi,        type: playwright, active: true  }
-          - { id: satofull,        module: scrapers.satofull,        type: playwright, active: true  }
+          - { id: rakuten,           module: scrapers.rakuten_api,     type: api,        active: true  }
+          - { id: furunavi,          module: scrapers.furunavi,        type: playwright, active: true  }
+          - { id: satofull,          module: scrapers.satofull,        type: playwright, active: true  }
+          - { id: amazon,            module: scrapers.amazon,          type: playwright, active: true  }
+          - { id: furusato_choice,   module: scrapers.furusato_choice, type: playwright, active: true  }
+          - { id: pokemaru,          module: scrapers.pokemaru,        type: playwright, active: true  }
+          - { id: whiskey_furusato,  module: scrapers.whiskey_furusato,type: playwright, active: true  }
           - { id: dshopping,         module: scrapers.dshopping,       type: playwright, active: true  }
-          - { id: amazon,          module: scrapers.amazon,          type: playwright, active: true  }
-          - { id: furusato_choice, module: scrapers.furusato_choice, type: playwright, active: true  }
-          - { id: ana,             module: scrapers.ana,             type: playwright, active: true }
-          - { id: jal,             module: scrapers.jal,             type: playwright, active: true }
-          - { id: mynavi,          module: scrapers.mynavi,          type: playwright, active: true }
-          - { id: furu_premium,    module: scrapers.furu_premium,    type: playwright, active: true }
-          - { id: furu_lab,        module: scrapers.furu_lab,        type: playwright, active: true }
-          - { id: mitsukoshi,      module: scrapers.mitsukoshi,      type: playwright, active: true }
-          - { id: aupay,           module: scrapers.aupay,           type: playwright, active: true }
-          - { id: saison,          module: scrapers.saison,          type: playwright, active: true }
-          - { id: jre_mall,        module: scrapers.jre_mall,        type: playwright, active: true }
-          - { id: honpo,           module: scrapers.honpo,           type: playwright, active: true  }
-          - { id: pokemaru,        module: scrapers.pokemaru,        type: playwright, active: true  }
-          - { id: whiskey_furusato, module: scrapers.whiskey_furusato, type: playwright, active: true }
-          - { id: palette,         module: scrapers.palette,         type: playwright, active: true }
-          - { id: hyakusen,        module: scrapers.hyakusen,        type: playwright, active: true }
-          - { id: tokyu,           module: scrapers.tokyu,           type: playwright, active: true }
-          - { id: qoo10,           module: scrapers.qoo10,           type: playwright, active: true }
-          - { id: montbell,        module: scrapers.montbell,        type: playwright, active: true }
-          - { id: yell,            module: scrapers.yell,            type: playwright, active: true }
+          - { id: honpo,             module: scrapers.honpo,           type: playwright, active: true  }
+          - { id: ana,               module: scrapers.ana,             type: playwright, active: true  }
+          - { id: jal,               module: scrapers.jal,             type: playwright, active: true  }
+          - { id: saison,            module: scrapers.saison,          type: playwright, active: true  }
+          - { id: jre_mall,          module: scrapers.jre_mall,        type: playwright, active: true  }
+          - { id: qoo10,             module: scrapers.qoo10,           type: playwright, active: true  }
+          - { id: montbell,          module: scrapers.montbell,        type: playwright, active: true  }
+          # ── ドメイン不存在・サービス終了 (active: false) ────────
+          - { id: mynavi,            module: scrapers.mynavi,          type: playwright, active: false }
+          - { id: furu_premium,      module: scrapers.furu_premium,    type: playwright, active: false }
+          - { id: furu_lab,          module: scrapers.furu_lab,        type: playwright, active: false }
+          - { id: mitsukoshi,        module: scrapers.mitsukoshi,      type: playwright, active: false }
+          - { id: aupay,             module: scrapers.aupay,           type: playwright, active: false }
+          - { id: palette,           module: scrapers.palette,         type: playwright, active: false }
+          - { id: hyakusen,          module: scrapers.hyakusen,        type: playwright, active: false }
+          - { id: tokyu,             module: scrapers.tokyu,           type: playwright, active: false }
+          - { id: yell,              module: scrapers.yell,            type: playwright, active: false }
 
     steps:
-      # active フラグと手動指定フィルタをステップレベルで判定
-      # (job-level if での matrix 参照は VS Code YAML linter が誤検知するため回避)
       - name: Check if this site should run
         id: gate
         run: |
@@ -130,6 +126,7 @@ jobs:
         run: |
           export PYTHONPATH=$PYTHONPATH:.
           python -X utf8 -m ${{ matrix.site.module }}
+
   # ─────────────────────────────────────────────────────────
   # ② 全スクレイパー完了後に還元率を一括計算
   # ─────────────────────────────────────────────────────────
