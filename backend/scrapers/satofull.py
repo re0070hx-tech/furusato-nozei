@@ -16,14 +16,22 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://www.satofull.jp"
 
-# (cat パラメータ, category_label) — 楽天・ふるなびの category 名と統一
+# (cat パラメータ, category_label) — さとふるサイト確認済み
 CATEGORIES: list[tuple[str, str]] = [
     ("g101", "肉"),
     ("g102", "魚"),
-    ("g103", "米"),
     ("g104", "果物"),
     ("g105", "野菜"),
+    ("g103", "米"),
+    ("g107", "お酒"),
+    ("g110", "お菓子"),
+    ("g111", "麺類"),
+    ("g112", "調味料"),
+    ("g106", "加工品"),
     ("g122", "家電"),
+    ("g114", "旅行"),
+    ("g113", "雑貨"),
+    ("g115", "工芸品"),
 ]
 
 _USER_AGENT = (

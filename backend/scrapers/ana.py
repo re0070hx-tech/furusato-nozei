@@ -2,8 +2,8 @@
 ANAふるさと納税スクレイパー
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-URL 構造: https://furusato.ana.co.jp/products?category={cat}&page={p}
-商品 ID: URL パス /products/{product_id} の末尾セグメント
+URL 構造: https://furusato.ana.co.jp/donation/w/wCL001/?p={page}
+商品 ID: /donation/g/g{id}/ の id セグメント
 """
 from __future__ import annotations
 
@@ -20,16 +20,20 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://furusato.ana.co.jp"
 
-# (カテゴリスラッグ, category_label)
-# m_tree パラメータ (2026-05 確認済み)
-# /donation/goods/ranking.aspx?search=x&m_tree={id}&term=m
+# (wCL コード, category_label) — 2026-05 実サイト確認済み
 CATEGORIES: list[tuple[str, str]] = [
-    ("12",  "肉"),
-    ("13",  "魚"),
-    ("17",  "果物"),
-    ("18",  "野菜"),
-    ("16",  "米"),
-    ("30",  "家電"),
+    ("wCL001", "肉"),
+    ("wCL002", "魚"),
+    ("wCL015", "果物"),
+    ("wCL003", "野菜"),
+    ("wCL004", "米"),
+    ("wCL010", "お酒"),
+    ("wCL008", "お菓子"),
+    ("wCL007", "麺類"),
+    ("wCL006", "加工品"),
+    ("wCL017", "家電"),
+    ("wCL011", "旅行"),
+    ("wCL012", "雑貨"),
 ]
 
 _USER_AGENT = (
@@ -38,7 +42,9 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"/donation/detail/(\w[\w-]*)")
+_PRICE_RE = re.compile(r"[\d,]+")
+_PID_RE   = re.compile(r"/donation/g/g([\w-]+)/?")
+_MUNI_RE  = re.compile(r"/donation/top/(\d+)/?")
 
 
 def _parse_price(text: str) -> int | None:
@@ -47,7 +53,7 @@ def _parse_price(text: str) -> int | None:
 
 
 def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/donation/detail/']")
+    link_el = card.query_selector("a[href*='/donation/g/']")
     if not link_el:
         return None
     href = link_el.get_attribute("href") or ""
@@ -55,21 +61,24 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     if not m:
         return None
     pid = m.group(1)
-    product_url = urljoin(BASE_URL, href.split("?")[0])
+    product_url = urljoin(BASE_URL, f"/donation/g/g{pid}/")
 
-    title_el = (
-        card.query_selector(".product-name")
-        or card.query_selector(".item-name")
-        or card.query_selector("h3")
-        or card.query_selector("h2")
-    )
-    title = title_el.inner_text().strip() if title_el else None
+    # タイトルは <a title="..."> 属性またはテキストノード
+    title = link_el.get_attribute("title") or ""
+    if not title:
+        title_el = (
+            card.query_selector(".p-item-name")
+            or card.query_selector(".item-name")
+            or card.query_selector("h3")
+            or card.query_selector("h2")
+        )
+        title = title_el.inner_text().strip() if title_el else ""
+    title = title.strip()
     if not title:
         return None
 
     price_el = (
         card.query_selector(".price")
-        or card.query_selector(".donation-amount")
         or card.query_selector("[class*='price']")
         or card.query_selector("[class*='amount']")
     )
@@ -78,12 +87,8 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     img_el = card.query_selector("img")
     img_url = img_el.get_attribute("src") if img_el else None
 
-    muni_el = (
-        card.query_selector(".municipality")
-        or card.query_selector(".city-name")
-        or card.query_selector("[class*='muni']")
-        or card.query_selector("[class*='city']")
-    )
+    # 自治体リンク: /donation/top/{id}/
+    muni_el = card.query_selector("a[href*='/donation/top/']")
     municipality = muni_el.inner_text().strip() if muni_el else None
 
     volume_g = extract_volume_g(title)
@@ -104,17 +109,14 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     }
 
 
-def _scrape_page(page: Page, cat: str, category: str, p: int) -> list[dict]:
-    # ANA確認済みURL: /donation/goods/ranking.aspx?search=x&m_tree={id}&term=m&page={p}
-    url = (
-        f"{BASE_URL}/donation/goods/ranking.aspx"
-        f"?search=x&m_tree={cat}&term=m&page={p}&dispno=60"
-    )
+def _scrape_page(page: Page, cat_code: str, category: str, p: int) -> list[dict]:
+    # ANA 確認済みURL: /donation/w/{wCL_code}/?p={page}
+    url = f"{BASE_URL}/donation/w/{cat_code}/?p={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
         page.wait_for_selector(
-            "a[href*='/donation/detail/']",
+            "a[href*='/donation/g/']",
             timeout=15_000,
         )
     except Exception:
@@ -156,10 +158,10 @@ class AnaScraper(BaseScraper):
             )
             page = ctx.new_page()
 
-            for cat, cat_name in CATEGORIES:
+            for cat_code, cat_name in CATEGORIES:
                 for p in range(1, pages_per_category + 1):
                     try:
-                        rows = _scrape_page(page, cat, cat_name, p)
+                        rows = _scrape_page(page, cat_code, cat_name, p)
                         if not rows:
                             break
                         n = self.upsert_batch(rows)

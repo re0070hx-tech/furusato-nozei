@@ -40,6 +40,28 @@ export type Site = {
   sort_order: number;
 };
 
+// ─── カテゴリエイリアス (UIラベル → DBに格納されている値の一覧) ──────
+const CATEGORY_ALIASES: Record<string, string[]> = {
+  "肉":         ["肉", "肉類"],
+  "魚介":       ["魚", "魚介", "魚介類", "魚貝類", "海産物"],
+  "米・パン":   ["米", "米・パン"],
+  "果物":       ["果物", "フルーツ", "果物類"],
+  "野菜":       ["野菜", "野菜類"],
+  "お酒":       ["お酒", "酒", "酒・アルコール"],
+  "お菓子":     ["菓子", "お菓子", "スイーツ", "お菓子・スイーツ", "菓子・スイーツ"],
+  "麺類":       ["麺", "麺類", "麺・パスタ"],
+  "調味料":     ["調味料", "調味料・油"],
+  "家電":       ["家電", "家電製品", "電化製品"],
+  "旅行・体験": ["旅行", "旅行券", "旅行・チケット", "体験", "体験・チケット", "チケット"],
+  "雑貨":       ["雑貨", "雑貨・日用品", "日用品"],
+  "工芸品":     ["工芸品", "工芸", "民芸品", "民芸品・工芸品"],
+  "その他":     ["その他", "加工食品", "惣菜", "加工品", "加工品等", "セット類"],
+};
+
+function resolveCategory(cat: string): string[] {
+  return CATEGORY_ALIASES[cat] ?? [cat];
+}
+
 // ─── 商品取得 (サイトフィルタを DB の where 句で実行) ────────────────
 export async function fetchProducts(opts?: {
   category?: string;
@@ -53,7 +75,7 @@ export async function fetchProducts(opts?: {
 }): Promise<Product[]> {
   let q = supabase.from("products").select("*");
 
-  if (opts?.category) q = q.eq("category", opts.category);
+  if (opts?.category) q = q.in("category", resolveCategory(opts.category));
   // ← サイトフィルタをクライアント側ではなく DB の where 句で実行 (pagination 修正)
   if (opts?.siteId)   q = q.eq("site_id", opts.siteId);
   if (opts?.minAmount) q = q.gte("donation_amount", opts.minAmount);

@@ -1,32 +1,39 @@
 """
-パレットふるさとスクレイパー
-Playwright で返礼品一覧を取得し products テーブルへ upsert する。
+東急ふるさとパレットスクレイパー (tokyu-furusato.jp)
+キーワード検索 API で返礼品一覧を取得し products テーブルへ upsert する。
 
-URL 構造: https://palette-furusato.com/search?cat={id}&page={p}
-商品 ID: URL パス /product/{product_id}
+URL 構造: https://tokyu-furusato.jp/goods/result?chk_except=1&word={keyword}&atword&page={p}
+商品 ID: /goods/detail/{32 桁 hex hash} のハッシュ部分
 """
 from __future__ import annotations
 
 import logging
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote
 
-from playwright.sync_api import sync_playwright, Page, ElementHandle
+from playwright.sync_api import sync_playwright, Page
 
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
 
 log = logging.getLogger(__name__)
 
-BASE_URL = "https://palette-furusato.com"
+BASE_URL = "https://tokyu-furusato.jp"
 
+# (検索キーワード, category_label)
 CATEGORIES: list[tuple[str, str]] = [
-    ("1", "肉"),
-    ("2", "魚"),
-    ("3", "果物"),
-    ("4", "野菜"),
-    ("5", "米"),
-    ("8", "家電"),
+    ("牛肉 豚肉 鶏肉",  "肉"),
+    ("魚 海鮮 水産",    "魚"),
+    ("果物 フルーツ",   "果物"),
+    ("野菜",            "野菜"),
+    ("米 お米",         "米"),
+    ("日本酒 ビール ワイン 焼酎", "お酒"),
+    ("お菓子 スイーツ", "お菓子"),
+    ("麺類 ラーメン うどん", "麺類"),
+    ("調味料",          "調味料"),
+    ("家電 電化製品",   "家電"),
+    ("旅行 宿泊 体験",  "旅行"),
+    ("雑貨 日用品",     "雑貨"),
 ]
 
 _USER_AGENT = (
@@ -35,103 +42,79 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"/product/(\d+)")
 _PRICE_RE = re.compile(r"[\d,]+")
+_PID_RE   = re.compile(r"/goods/detail/([a-f0-9]{32})")
 
 
 def _parse_price(text: str) -> int | None:
-    digits = re.sub(r"[^\d]", "", text)
-    return int(digits) if digits else None
+    m = _PRICE_RE.search(text.replace(",", ""))
+    return int(m.group()) if m else None
 
 
-def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/product/']")
-    if not link_el:
-        return None
-    href = link_el.get_attribute("href") or ""
-    m = _PID_RE.search(href)
-    if not m:
-        return None
-    pid = m.group(1)
-    product_url = urljoin(BASE_URL, href.split("?")[0])
-
-    title_el = (
-        card.query_selector(".product-name")
-        or card.query_selector("[class*='name']")
-        or card.query_selector("h3")
-        or card.query_selector("h2")
+def _scrape_page(page: Page, keyword: str, category: str, p: int) -> list[dict]:
+    url = (
+        f"{BASE_URL}/goods/result"
+        f"?chk_except=1&word={quote(keyword)}&atword&page={p}"
     )
-    title = title_el.inner_text().strip() if title_el else None
-    if not title:
-        return None
-
-    price_el = (
-        card.query_selector("[class*='price']")
-        or card.query_selector("[class*='amount']")
-    )
-    price = _parse_price(price_el.inner_text()) if price_el else None
-
-    img_el = card.query_selector("img")
-    img_url = None
-    if img_el:
-        img_url = img_el.get_attribute("src") or img_el.get_attribute("data-src")
-
-    muni_el = (
-        card.query_selector("[class*='city']")
-        or card.query_selector("[class*='muni']")
-    )
-    municipality = muni_el.inner_text().strip() if muni_el else None
-
-    volume_g = extract_volume_g(title)
-
-    return {
-        "id":               f"palette_{pid}",
-        "site_name":        "パレットふるさと",
-        "title":            title,
-        "donation_amount":  price,
-        "volume_g":         volume_g,
-        "asset_rate":       None,
-        "market_price":     None,
-        "product_url":      product_url,
-        "image_url":        img_url,
-        "category":         category,
-        "municipality":     municipality,
-        "payment_campaigns": None,
-    }
-
-
-def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    url = f"{BASE_URL}/search?cat={cat_id}&page={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='/product/']", timeout=15_000)
+        page.wait_for_selector("a[href*='/goods/detail/']", timeout=15_000)
     except Exception:
-        log.debug("パレット cat=%s p=%d: 商品カード未検出", category, p)
+        log.debug("東急パレット cat=%s p=%d: 商品未検出", category, p)
         return []
 
-    cards = (
-        page.query_selector_all("[class*='product-card']")
-        or page.query_selector_all("[class*='item-card']")
-        or page.query_selector_all("li[class*='item']")
-        or page.query_selector_all("article")
-    )
+    rows = page.evaluate("""() => {
+        const results = [];
+        document.querySelectorAll("a[href*='/goods/detail/']").forEach(a => {
+            const m = a.href.match(/\\/goods\\/detail\\/([a-f0-9]{32})/);
+            if (!m) return;
+            const pid = m[1];
+            const card = a.closest("li, article, [class*='item'], [class*='card']") || a;
+            const titleEl = card.querySelector("h3, h2, [class*='name'], [class*='title']");
+            const title = titleEl ? titleEl.innerText.trim() : (a.title || a.innerText.trim());
+            if (!title) return;
+            const priceEl = card.querySelector("[class*='price'], [class*='amount']");
+            const priceText = priceEl ? priceEl.innerText : "";
+            const priceM = priceText.replace(/,/g, "").match(/\\d+/);
+            const price = priceM ? parseInt(priceM[0]) : null;
+            const img = card.querySelector("img");
+            const imgUrl = img ? (img.src || img.dataset.src || null) : null;
+            const muniEl = card.querySelector("[class*='city'], [class*='area'], [class*='pref']");
+            const municipality = muniEl ? muniEl.innerText.trim() : null;
+            results.push({pid, title, price, imgUrl, municipality});
+        });
+        return results;
+    }""")
 
     seen: set[str] = set()
-    rows: list[dict] = []
-    for card in cards:
-        try:
-            row = _extract_item(card, category)
-            if row and row["id"] not in seen and row["donation_amount"]:
-                seen.add(row["id"])
-                rows.append(row)
-        except Exception as e:
-            log.debug("item skip: %s", e)
-    return rows
+    out: list[dict] = []
+    for r in rows:
+        pid = r.get("pid")
+        title = r.get("title") or ""
+        price = r.get("price")
+        if not pid or not title or pid in seen:
+            continue
+        seen.add(pid)
+        out.append({
+            "id":               f"palette_{pid}",
+            "site_name":        "東急ふるさとパレット",
+            "title":            title,
+            "donation_amount":  price,
+            "volume_g":         extract_volume_g(title),
+            "asset_rate":       None,
+            "market_price":     None,
+            "product_url":      urljoin(BASE_URL, f"/goods/detail/{pid}"),
+            "image_url":        r.get("imgUrl"),
+            "category":         category,
+            "municipality":     r.get("municipality"),
+            "payment_campaigns": None,
+        })
+    return out
 
 
 class PaletteScraper(BaseScraper):
-    site_name = "パレットふるさと"
+    site_name = "東急ふるさとパレット"
     site_id   = "palette"
 
     def run_sync(self, pages_per_category: int = 3) -> int:
@@ -145,23 +128,23 @@ class PaletteScraper(BaseScraper):
             )
             page = ctx.new_page()
 
-            for cat_id, cat_name in CATEGORIES:
+            for keyword, cat_name in CATEGORIES:
                 for p in range(1, pages_per_category + 1):
                     try:
-                        rows = _scrape_page(page, cat_id, cat_name, p)
+                        rows = _scrape_page(page, keyword, cat_name, p)
                         if not rows:
                             break
                         n = self.upsert_batch(rows)
                         total += n
-                        log.info("パレット cat=%s p=%d: %d件 upsert", cat_name, p, n)
+                        log.info("東急パレット cat=%s p=%d: %d件 upsert", cat_name, p, n)
                     except Exception as e:
-                        log.warning("パレット cat=%s p=%d エラー: %s", cat_name, p, e)
+                        log.warning("東急パレット cat=%s p=%d エラー: %s", cat_name, p, e)
                         break
                     self.sleep()
 
             browser.close()
 
-        log.info("パレット 完了: 合計 %d件", total)
+        log.info("東急パレット 完了: 合計 %d件", total)
         return total
 
 

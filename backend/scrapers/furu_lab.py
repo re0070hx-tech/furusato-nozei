@@ -1,9 +1,9 @@
 """
-ふるラボスクレイパー
+ふるラボスクレイパー (朝日テレビ)
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-URL 構造: https://furulab.tv/category/{slug}?page={p}
-商品 ID: URL パス /product/{product_id}
+URL 構造: https://furusato.asahi.co.jp/goods/?c={cat_id}&l=30&o=1&start={page}
+商品 ID: URL クエリ id={id} または /goods/{id}/
 """
 from __future__ import annotations
 
@@ -18,15 +18,16 @@ from lib.volume_extractor import extract_volume_g
 
 log = logging.getLogger(__name__)
 
-BASE_URL = "https://furulab.tv"
+BASE_URL = "https://furusato.asahi.co.jp"
 
+# (カテゴリID, ラベル)
 CATEGORIES: list[tuple[str, str]] = [
-    ("meat",      "肉"),
-    ("seafood",   "魚"),
-    ("fruits",    "果物"),
-    ("vegetable", "野菜"),
-    ("rice",      "米"),
-    ("appliance", "家電"),
+    ("1", "肉"),
+    ("2", "米"),
+    ("3", "果物"),
+    ("5", "魚"),
+    ("6", "野菜"),
+    ("8", "お酒"),
 ]
 
 _USER_AGENT = (
@@ -35,7 +36,8 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"/product/(\d+)")
+# /goods/detail/123/ または /goods/?id=123
+_PID_RE = re.compile(r"/goods/(?:detail/)?(\d+)/?|[?&]id=(\d+)")
 _PRICE_RE = re.compile(r"[\d,]+")
 
 
@@ -45,15 +47,15 @@ def _parse_price(text: str) -> int | None:
 
 
 def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/product/']")
+    link_el = card.query_selector("a[href*='/goods/']")
     if not link_el:
         return None
     href = link_el.get_attribute("href") or ""
     m = _PID_RE.search(href)
     if not m:
         return None
-    pid = m.group(1)
-    product_url = urljoin(BASE_URL, href.split("?")[0])
+    pid = m.group(1) or m.group(2)
+    product_url = urljoin(BASE_URL, href.split("?")[0]) if "/goods/" in href else urljoin(BASE_URL, href)
 
     title_el = (
         card.query_selector(".product-title")
@@ -101,12 +103,12 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     }
 
 
-def _scrape_page(page: Page, slug: str, category: str, p: int) -> list[dict]:
-    url = f"{BASE_URL}/category/{slug}?page={p}"
+def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
+    url = f"{BASE_URL}/goods/?c={cat_id}&l=30&o=1&start={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='/product/']", timeout=15_000)
+        page.wait_for_selector("a[href*='/goods/']", timeout=15_000)
     except Exception:
         log.debug("ふるラボ cat=%s p=%d: 商品カード未検出", category, p)
         return []
@@ -146,10 +148,10 @@ class FuruLabScraper(BaseScraper):
             )
             page = ctx.new_page()
 
-            for slug, cat_name in CATEGORIES:
+            for cat_id, cat_name in CATEGORIES:
                 for p in range(1, pages_per_category + 1):
                     try:
-                        rows = _scrape_page(page, slug, cat_name, p)
+                        rows = _scrape_page(page, cat_id, cat_name, p)
                         if not rows:
                             break
                         n = self.upsert_batch(rows)

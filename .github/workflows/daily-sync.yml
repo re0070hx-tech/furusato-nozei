@@ -42,16 +42,22 @@ jobs:
           - { id: jre_mall,          module: scrapers.jre_mall,        type: playwright, active: true  }
           - { id: qoo10,             module: scrapers.qoo10,           type: playwright, active: true  }
           - { id: montbell,          module: scrapers.montbell,        type: playwright, active: true  }
-          # ── ドメイン不存在・サービス終了 (active: false) ────────
+          - { id: furu_lab,          module: scrapers.furu_lab,        type: playwright, active: true  }
+          - { id: mitsukoshi,        module: scrapers.mitsukoshi,      type: playwright, active: true  }
+          - { id: furopo,            module: scrapers.furopo,          type: playwright, active: true  }
+          - { id: furu_premium,      module: scrapers.furu_premium,    type: playwright, active: true  }
+          - { id: aupay,             module: scrapers.aupay,           type: playwright, active: true  }
+          - { id: tabechoku,         module: scrapers.tabechoku,       type: playwright, active: true  }
+          - { id: nippon,            module: scrapers.nippon,          type: playwright, active: true  }
+          - { id: maifuru,           module: scrapers.aeon,            type: playwright, active: true  }
+          - { id: palette,           module: scrapers.palette,         type: playwright, active: true  }
+          - { id: yell,              module: scrapers.yell,            type: playwright, active: true  }
+          # ── 閉鎖・アクセス不可 (active: false) ────────────────
           - { id: mynavi,            module: scrapers.mynavi,          type: playwright, active: false }
-          - { id: furu_premium,      module: scrapers.furu_premium,    type: playwright, active: false }
-          - { id: furu_lab,          module: scrapers.furu_lab,        type: playwright, active: false }
-          - { id: mitsukoshi,        module: scrapers.mitsukoshi,      type: playwright, active: false }
-          - { id: aupay,             module: scrapers.aupay,           type: playwright, active: false }
-          - { id: palette,           module: scrapers.palette,         type: playwright, active: false }
+          - { id: gurune,            module: scrapers.gurune,          type: playwright, active: false }
+          - { id: gurusuguri,        module: scrapers.gurusuguri,      type: playwright, active: false }
           - { id: hyakusen,          module: scrapers.hyakusen,        type: playwright, active: false }
           - { id: tokyu,             module: scrapers.tokyu,           type: playwright, active: false }
-          - { id: yell,              module: scrapers.yell,            type: playwright, active: false }
 
     steps:
       - name: Check if this site should run

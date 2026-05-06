@@ -34,6 +34,15 @@ export function getSiteBadgeStyle(siteId: string | null, siteName: string): { bg
   if (id.includes("qoo10")           || siteName.includes("Qoo10"))              return { bg: "#FCE4EC", color: "#FF4081" };
   if (id.includes("montbell")        || siteName.includes("モンベル"))            return { bg: "#E3F2FD", color: "#1565C0" };
   if (id.includes("yell")            || siteName.includes("エール"))              return { bg: "#E8F5E9", color: "#4CAF50" };
+  if (id.includes("furopo")          || siteName.includes("ふるぽ"))              return { bg: "#E0F2F1", color: "#00897B" };
+  if (id.includes("tabechoku")       || siteName.includes("食べチョク"))           return { bg: "#E8F5E9", color: "#43A047" };
+  if (id.includes("maifuru")         || siteName.includes("まいふる"))             return { bg: "#FCE4EC", color: "#E91E63" };
+  if (id.includes("gurune")          || siteName.includes("ぐるなび"))             return { bg: "#FFEBEE", color: "#D32F2F" };
+  if (id.includes("nippon")          || siteName.includes("ニッポン"))             return { bg: "#E3F2FD", color: "#1565C0" };
+  if (id.includes("aeon")            || siteName.includes("イオン"))               return { bg: "#FFEBEE", color: "#E53935" };
+  if (id.includes("gurusuguri")      || siteName.includes("ぐるすぐり"))           return { bg: "#FFEBEE", color: "#D32F2F" };
+  if (id.includes("furu_premium")    || siteName.includes("プレミアム"))            return { bg: "#F3E5F5", color: "#7B1FA2" };
+  if (id.includes("aupay")           || siteName.includes("au PAY"))              return { bg: "#FFF3E0", color: "#FF6600" };
   return { bg: "#F5F5F5", color: "#555555" };
 }
 

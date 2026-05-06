@@ -17,14 +17,24 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://furunavi.jp"
 
-# (categoryid, category_label) — 楽天の category 名と統一
+# (categoryid, category_label) — ふるなびサイト確認済み全カテゴリ
 CATEGORIES: list[tuple[int, str]] = [
     (2,  "肉"),
     (3,  "魚"),
     (7,  "果物"),
     (6,  "野菜"),
     (1,  "米"),
+    (8,  "お酒"),
+    (11, "お菓子"),
+    (4,  "麺類"),
+    (10, "調味料"),
     (17, "家電"),
+    (12, "旅行・体験"),
+    (5,  "雑貨"),
+    (18, "工芸品"),
+    (16, "加工品"),
+    (9,  "飲料"),
+    (13, "その他"),
 ]
 
 _USER_AGENT = (

@@ -4,7 +4,22 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 import type { Site } from "@/lib/supabase";
 
-const CATEGORIES = ["肉", "魚", "果物", "野菜", "米", "家電"];
+const CATEGORIES = [
+  { label: "肉",         emoji: "🥩" },
+  { label: "魚介",       emoji: "🐟" },
+  { label: "米・パン",   emoji: "🍚" },
+  { label: "果物",       emoji: "🍎" },
+  { label: "野菜",       emoji: "🥦" },
+  { label: "お酒",       emoji: "🍶" },
+  { label: "お菓子",     emoji: "🍰" },
+  { label: "麺類",       emoji: "🍜" },
+  { label: "調味料",     emoji: "🧂" },
+  { label: "家電",       emoji: "💻" },
+  { label: "旅行・体験", emoji: "✈️" },
+  { label: "雑貨",       emoji: "🧴" },
+  { label: "工芸品",     emoji: "🏺" },
+  { label: "その他",     emoji: "📦" },
+];
 const SORT_OPTIONS = [
   { value: "asset_rate",      label: "還元率順" },
   { value: "donation_amount", label: "寄付額順" },
@@ -77,16 +92,16 @@ export default function ProductFilters({ withPoints, activeSites }: Props) {
           <div className="flex gap-1.5 flex-wrap">
             {CATEGORIES.map(c => (
               <button
-                key={c}
-                onClick={() => set({ cat: cat === c ? null : c })}
-                className="px-3 py-1 text-xs rounded-full transition-all"
+                key={c.label}
+                onClick={() => set({ cat: cat === c.label ? null : c.label })}
+                className="px-3 py-1 text-xs rounded-full transition-all whitespace-nowrap"
                 style={{
-                  background: cat === c ? "var(--forest)" : "var(--bg-2)",
-                  color:      cat === c ? "white"         : "var(--text-2)",
-                  fontWeight: cat === c ? "600"           : "400",
+                  background: cat === c.label ? "var(--forest)" : "var(--bg-2)",
+                  color:      cat === c.label ? "white"         : "var(--text-2)",
+                  fontWeight: cat === c.label ? "600"           : "400",
                 }}
               >
-                {c}
+                {c.emoji} {c.label}
               </button>
             ))}
           </div>
@@ -128,20 +143,20 @@ export default function ProductFilters({ withPoints, activeSites }: Props) {
           </div>
         </div>
 
-        {/* Row 2: サイト (横スクロール対応) */}
+        {/* Row 2: サイト (折り返し表示) */}
         {activeSites.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium mr-1 shrink-0" style={{ color: "var(--text-3)" }}>サイト</span>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-medium mr-1 shrink-0 mt-1" style={{ color: "var(--text-3)" }}>サイト</span>
+            <div className="flex gap-1.5 flex-wrap">
               {activeSites.map(s => (
                 <button
                   key={s.id}
                   onClick={() => set({ site: site === s.id ? null : s.id })}
-                  className="px-3 py-1 text-xs rounded-full transition-all shrink-0"
+                  className="px-3 py-1 text-xs rounded-full transition-all whitespace-nowrap"
                   style={{
-                    background: site === s.id ? s.color   : "var(--bg-2)",
-                    color:      site === s.id ? s.text_color : "var(--text-2)",
-                    fontWeight: site === s.id ? "600"     : "400",
+                    background: site === s.id ? s.color      : "var(--bg-2)",
+                    color:      site === s.id ? s.text_color  : "var(--text-2)",
+                    fontWeight: site === s.id ? "600"         : "400",
                   }}
                 >
                   {s.logo_emoji} {s.display_name}
