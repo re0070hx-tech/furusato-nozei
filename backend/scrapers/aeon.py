@@ -94,8 +94,8 @@ def _extract_item(card: ElementHandle, category: str) -> dict | None:
     volume_g = extract_volume_g(title)
 
     return {
-        "id":               f"aeon_{pid}",
-        "site_name":        "イオンのふるさと納税",
+        "id":               f"maifuru_{pid}",
+        "site_name":        "まいふる",
         "title":            title,
         "donation_amount":  price,
         "volume_g":         volume_g,
