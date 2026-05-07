@@ -8,6 +8,7 @@ import time
 import random
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,8 +35,9 @@ class BaseScraper(ABC):
     def run_sync(self, pages_per_category: int = 3) -> int: ...
 
     def enrich_row(self, row: dict) -> dict:
-        """upsert前に site_id・affiliate_url を自動付与する"""
+        """upsert前に site_id・affiliate_url・last_seen_at を自動付与する"""
         row.setdefault("site_id", self.site_id)
+        row["last_seen_at"] = datetime.now(timezone.utc).isoformat()
         if not row.get("affiliate_url") and row.get("product_url"):
             aff = generate_affiliate_link(self.site_id, row["product_url"])
             if aff != row["product_url"]:  # フォールバックと異なる場合のみ設定
@@ -46,7 +48,12 @@ class BaseScraper(ABC):
         if not rows:
             return 0
         enriched = [self.enrich_row(r) for r in rows]
-        result = self.supabase.table("products").upsert(enriched, on_conflict="id").execute()
+        # 同一バッチ内の重複 id を除去（ON CONFLICT が同一行を2回更新しようとするのを防ぐ）
+        seen: dict[str, dict] = {}
+        for r in enriched:
+            seen[r["id"]] = r
+        unique = list(seen.values())
+        result = self.supabase.table("products").upsert(unique, on_conflict="id").execute()
         return len(result.data)
 
     def sleep(self, min_sec: float = 1.5, max_sec: float = 3.5) -> None:
