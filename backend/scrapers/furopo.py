@@ -61,9 +61,13 @@ def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
             const m = href.match(/[?&]id=(\\d+)/);
             if (!m) return;
 
-            const card = a.closest("li") || a.closest(".item") || a.closest("article") || a;
-            const titleEl = card.querySelector("h3, h2, [class*='name'], [class*='title'], p");
-            const priceEl = card.querySelector("[class*='price'], [class*='amount']");
+            const card = a.closest(".box") || a.closest("li") || a;
+            // h3 内に「おすすめ」等のバッジ span が含まれる場合があるため、
+            // テキストノードのみ or h3 > a から取得する
+            const h3 = card.querySelector("h3");
+            const h3Link = h3 ? h3.querySelector("a") : null;
+            const titleEl = h3Link || h3 || card.querySelector("h2, [class*='name'], [class*='title']");
+            const priceEl = card.querySelector(".price .right, .price, [class*='price'], [class*='amount']");
             const imgEl   = card.querySelector("img");
             const muniEl  = card.querySelector("[class*='city'], [class*='area'], [class*='muni']");
 

@@ -180,6 +180,40 @@ ON CONFLICT (id) DO UPDATE SET
     sort_order = EXCLUDED.sort_order,
     updated_at = now();
 
+-- ポケマルふるさと納税 (sort 6) — v2/v3 で INSERT 漏れのため追加
+INSERT INTO sites (
+    id, display_name, base_url, affiliate_asp, affiliate_template,
+    color, text_color, logo_emoji, scraper_type, scraper_module,
+    default_point_type, is_active, sort_order
+) VALUES (
+    'pokemaru', 'ポケマルふるさと納税', 'https://poke-m.com',
+    'direct', '{PRODUCT_URL}',
+    '#FF6F00', '#FFFFFF', '🥕',
+    'playwright', 'scrapers.pokemaru', '選択制', true, 6
+)
+ON CONFLICT (id) DO UPDATE SET
+    base_url   = EXCLUDED.base_url,
+    is_active  = EXCLUDED.is_active,
+    sort_order = EXCLUDED.sort_order,
+    updated_at = now();
+
+-- NFTウイスキーふるさと納税 (sort 7) — v2/v3 で INSERT 漏れのため追加
+INSERT INTO sites (
+    id, display_name, base_url, affiliate_asp, affiliate_template,
+    color, text_color, logo_emoji, scraper_type, scraper_module,
+    default_point_type, is_active, sort_order
+) VALUES (
+    'whiskey_furusato', 'NFTウイスキーふるさと納税', 'https://whisky.alyawmu.com',
+    'direct', '{PRODUCT_URL}',
+    '#4E342E', '#FFFFFF', '🥃',
+    'playwright', 'scrapers.whiskey_furusato', '選択制', true, 7
+)
+ON CONFLICT (id) DO UPDATE SET
+    base_url   = EXCLUDED.base_url,
+    is_active  = EXCLUDED.is_active,
+    sort_order = EXCLUDED.sort_order,
+    updated_at = now();
+
 -- ─────────────────────────────────────────────────────────────
 -- 4. 全サイト sort_order を sites.json と同期
 -- ─────────────────────────────────────────────────────────────

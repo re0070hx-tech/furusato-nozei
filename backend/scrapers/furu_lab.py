@@ -3,7 +3,9 @@
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
 URL 構造: https://furusato.asahi.co.jp/goods/?c={cat_id}&l=30&o=1&start={page}
-商品 ID: URL クエリ id={id} または /goods/{id}/
+カード: div.block (div.block-wrapper.goods-list 配下)
+商品URL: /goods/detail/{32文字ハッシュ}/
+フィールド: p.goods-name, p.goods-price, p.city-name, picture > img
 """
 from __future__ import annotations
 
@@ -11,7 +13,7 @@ import logging
 import re
 from urllib.parse import urljoin
 
-from playwright.sync_api import sync_playwright, Page, ElementHandle
+from playwright.sync_api import sync_playwright, Page
 
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
@@ -36,9 +38,7 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-# /goods/detail/123/ または /goods/?id=123
-_PID_RE = re.compile(r"/goods/(?:detail/)?(\d+)/?|[?&]id=(\d+)")
-_PRICE_RE = re.compile(r"[\d,]+")
+_PID_RE = re.compile(r"/goods/detail/([\w-]+)/?")
 
 
 def _parse_price(text: str) -> int | None:
@@ -46,90 +46,82 @@ def _parse_price(text: str) -> int | None:
     return int(digits) if digits else None
 
 
-def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/goods/']")
-    if not link_el:
-        return None
-    href = link_el.get_attribute("href") or ""
-    m = _PID_RE.search(href)
-    if not m:
-        return None
-    pid = m.group(1) or m.group(2)
-    product_url = urljoin(BASE_URL, href.split("?")[0]) if "/goods/" in href else urljoin(BASE_URL, href)
-
-    title_el = (
-        card.query_selector(".product-title")
-        or card.query_selector(".product-name")
-        or card.query_selector("h3")
-        or card.query_selector("h2")
-    )
-    title = title_el.inner_text().strip() if title_el else None
-    if not title:
-        return None
-
-    price_el = (
-        card.query_selector(".product-price")
-        or card.query_selector("[class*='price']")
-        or card.query_selector("[class*='amount']")
-    )
-    price = _parse_price(price_el.inner_text()) if price_el else None
-
-    img_el = card.query_selector("img")
-    img_url = None
-    if img_el:
-        img_url = img_el.get_attribute("src") or img_el.get_attribute("data-src")
-
-    muni_el = (
-        card.query_selector("[class*='city']")
-        or card.query_selector("[class*='muni']")
-    )
-    municipality = muni_el.inner_text().strip() if muni_el else None
-
-    volume_g = extract_volume_g(title)
-
-    return {
-        "id":               f"furu_lab_{pid}",
-        "site_name":        "ふるラボ",
-        "title":            title,
-        "donation_amount":  price,
-        "volume_g":         volume_g,
-        "asset_rate":       None,
-        "market_price":     None,
-        "product_url":      product_url,
-        "image_url":        img_url,
-        "category":         category,
-        "municipality":     municipality,
-        "payment_campaigns": None,
-    }
-
-
 def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
     url = f"{BASE_URL}/goods/?c={cat_id}&l=30&o=1&start={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='/goods/']", timeout=15_000)
+        page.wait_for_selector("a[href*='/goods/detail/']", timeout=20_000)
     except Exception:
         log.debug("ふるラボ cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
-    cards = (
-        page.query_selector_all("[class*='product-card']")
-        or page.query_selector_all("[class*='item-card']")
-        or page.query_selector_all("li[class*='item']")
-        or page.query_selector_all("article")
-    )
+    items_data: list[dict] = page.evaluate("""() => {
+        const results = [];
+        const seen = new Set();
+        document.querySelectorAll("a[href*='/goods/detail/']").forEach(a => {
+            const href = a.getAttribute("href") || "";
+            const m = href.match(/\\/goods\\/detail\\/([\\.\\w-]+)\\/?/);
+            if (!m) return;
+            const pid = m[1];
+            if (seen.has(pid)) return;
+            seen.add(pid);
+
+            const card = a.closest(".block") || a;
+            const nameEl  = card.querySelector(".goods-name")
+                         || card.querySelector("[class*='name']");
+            const priceEl = card.querySelector(".goods-price")
+                         || card.querySelector("[class*='price']");
+            const cityEl  = card.querySelector(".city-name")
+                         || card.querySelector("[class*='city']")
+                         || card.querySelector("[class*='muni']");
+            const imgEl   = card.querySelector("picture > img")
+                         || card.querySelector("img");
+
+            results.push({
+                pid,
+                href,
+                title:        nameEl  ? nameEl.innerText.trim()  : null,
+                price_text:   priceEl ? priceEl.innerText.trim() : "",
+                municipality: cityEl  ? cityEl.innerText.trim()  : null,
+                img_url: imgEl
+                    ? (imgEl.getAttribute("src") || imgEl.getAttribute("data-src") || null)
+                    : null,
+            });
+        });
+        return results;
+    }""")
 
     seen: set[str] = set()
     rows: list[dict] = []
-    for card in cards:
-        try:
-            row = _extract_item(card, category)
-            if row and row["id"] not in seen and row["donation_amount"]:
-                seen.add(row["id"])
-                rows.append(row)
-        except Exception as e:
-            log.debug("item skip: %s", e)
+    for item in items_data:
+        pid = item.get("pid") or ""
+        if not pid or pid in seen:
+            continue
+        seen.add(pid)
+
+        title = item.get("title") or ""
+        price = _parse_price(item.get("price_text") or "")
+        if not title or not price:
+            continue
+
+        href = item.get("href") or ""
+        product_url = urljoin(BASE_URL, href) if href else f"{BASE_URL}/goods/detail/{pid}/"
+
+        rows.append({
+            "id":               f"furu_lab_{pid}",
+            "site_name":        "ふるラボ",
+            "title":            title,
+            "donation_amount":  price,
+            "volume_g":         extract_volume_g(title),
+            "asset_rate":       None,
+            "market_price":     None,
+            "product_url":      product_url,
+            "image_url":        item.get("img_url"),
+            "category":         category,
+            "municipality":     item.get("municipality"),
+            "payment_campaigns": None,
+        })
     return rows
 
 

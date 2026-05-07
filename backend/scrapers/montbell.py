@@ -2,19 +2,16 @@
 モンベルふるさと納税スクレイパー
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-確認済みURL構造 (2026-05):
-  一覧: https://furusato.montbell.jp/products/search.php?category[{id}]=&sort=1&page={p}
-  カテゴリID: 519=おすすめ, 517=スポーツ・アウトドア, 513=旅行・チケット, 516=衣類,
-              514=日用品, 515=食料品
-  商品URL: /products/disp.php?product_id={id}
+URL 構造: https://furusato.montbell.jp/products/search.php?category[{id}]=&sort=1&page={p}
+商品リンク: a.furusato_product_link — クラス名が確認済み
+商品URL: /products/?code={code}
 """
 from __future__ import annotations
 
 import logging
 import re
-from urllib.parse import urljoin
 
-from playwright.sync_api import sync_playwright, Page, ElementHandle
+from playwright.sync_api import sync_playwright, Page
 
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
@@ -38,8 +35,7 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"product_id=(\d+)")
-_PRICE_RE = re.compile(r"[\d,]+")
+_CODE_RE = re.compile(r"[?&]code=([\w-]+)")
 
 
 def _parse_price(text: str) -> int | None:
@@ -47,101 +43,80 @@ def _parse_price(text: str) -> int | None:
     return int(digits) if digits else None
 
 
-def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='product_id=']")
-    if not link_el:
-        link_el = card.query_selector("a[href*='/products/disp']")
-    if not link_el:
-        return None
-    href = link_el.get_attribute("href") or ""
-    m = _PID_RE.search(href)
-    if not m:
-        return None
-    pid = m.group(1)
-    product_url = f"{BASE_URL}/products/disp.php?product_id={pid}"
-
-    title_el = (
-        card.query_selector(".product-name")
-        or card.query_selector("[class*='name']")
-        or card.query_selector("h3")
-        or card.query_selector("h2")
-    )
-    title = title_el.inner_text().strip() if title_el else None
-    if not title:
-        img_el = card.query_selector("img")
-        if img_el:
-            title = (img_el.get_attribute("alt") or "").strip()
-    if not title:
-        return None
-
-    price_el = (
-        card.query_selector("[class*='price']")
-        or card.query_selector("[class*='amount']")
-    )
-    price = _parse_price(price_el.inner_text()) if price_el else None
-
-    img_el = card.query_selector("img")
-    img_url = None
-    if img_el:
-        img_url = img_el.get_attribute("src") or img_el.get_attribute("data-src")
-
-    muni_el = (
-        card.query_selector("[class*='city']")
-        or card.query_selector("[class*='pref']")
-        or card.query_selector("[class*='area']")
-    )
-    municipality = muni_el.inner_text().strip() if muni_el else None
-
-    volume_g = extract_volume_g(title)
-
-    return {
-        "id":               f"montbell_{pid}",
-        "site_name":        "モンベル",
-        "title":            title,
-        "donation_amount":  price,
-        "volume_g":         volume_g,
-        "asset_rate":       None,
-        "market_price":     None,
-        "product_url":      product_url,
-        "image_url":        img_url,
-        "category":         category,
-        "municipality":     municipality,
-        "payment_campaigns": None,
-    }
-
-
 def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    # 確認済みURL: /products/search.php?category[{id}]=&sort=1&page={p}
     url = f"{BASE_URL}/products/search.php?category[{cat_id}]=&sort=1&page={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector(
-            "a[href*='product_id='], a[href*='/products/disp']",
-            timeout=15_000,
-        )
+        page.wait_for_selector("a.furusato_product_link", timeout=20_000)
     except Exception:
-        log.debug("モンベル cat=%s p=%d: 商品カード未検出", category, p)
+        log.debug("モンベル cat=%s p=%d: 商品リンク未検出", category, p)
         return []
 
-    cards = (
-        page.query_selector_all("[class*='product-card']")
-        or page.query_selector_all("[class*='item-card']")
-        or page.query_selector_all("li[class*='item']")
-        or page.query_selector_all("ul[class*='list'] > li")
-        or page.query_selector_all("article")
-    )
+    items_data: list[dict] = page.evaluate("""() => {
+        const results = [];
+        const seen = new Set();
+        document.querySelectorAll("a.furusato_product_link").forEach(a => {
+            const href = a.getAttribute("href") || "";
+            const m = href.match(/[?&]code=([\w-]+)/);
+            if (!m) return;
+            const code = m[1];
+            if (seen.has(code)) return;
+            seen.add(code);
+
+            const nameEl  = a.querySelector(".item_name")
+                         || a.querySelector("[class*='name']");
+            const priceEl = a.querySelector(".item_price")
+                         || a.querySelector("[class*='price']");
+            const placeEl = a.querySelector(".item_place")
+                         || a.querySelector("[class*='place']")
+                         || a.querySelector("[class*='area']");
+            const imgEl   = a.querySelector("img");
+
+            results.push({
+                code,
+                href,
+                title:        nameEl  ? nameEl.innerText.trim()  : a.innerText.trim(),
+                price_text:   priceEl ? priceEl.innerText.trim() : "",
+                municipality: placeEl ? placeEl.innerText.trim() : null,
+                img_url: imgEl
+                    ? (imgEl.getAttribute("src") || imgEl.getAttribute("data-src") || null)
+                    : null,
+            });
+        });
+        return results;
+    }""")
 
     seen: set[str] = set()
     rows: list[dict] = []
-    for card in cards:
-        try:
-            row = _extract_item(card, category)
-            if row and row["id"] not in seen and row["donation_amount"]:
-                seen.add(row["id"])
-                rows.append(row)
-        except Exception as e:
-            log.debug("item skip: %s", e)
+    for item in items_data:
+        code = item.get("code") or ""
+        if not code or code in seen:
+            continue
+        seen.add(code)
+
+        title = item.get("title") or ""
+        price = _parse_price(item.get("price_text") or "")
+        if not title or not price:
+            continue
+
+        href = item.get("href") or ""
+        product_url = f"{BASE_URL}{href}" if href.startswith("/") else href or f"{BASE_URL}/products/?code={code}"
+
+        rows.append({
+            "id":               f"montbell_{code}",
+            "site_name":        "モンベル",
+            "title":            title,
+            "donation_amount":  price,
+            "volume_g":         extract_volume_g(title),
+            "asset_rate":       None,
+            "market_price":     None,
+            "product_url":      product_url,
+            "image_url":        item.get("img_url"),
+            "category":         category,
+            "municipality":     item.get("municipality"),
+            "payment_campaigns": None,
+        })
     return rows
 
 

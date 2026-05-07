@@ -1,17 +1,22 @@
 """
-三越伊勢丹ふるさと納税スクレイパー (mifurusato.jp)
-Playwright で返礼品一覧を取得し products テーブルへ upsert する。
+三越伊勢丹ふるさと納税スクレイパー (mifurusato.jp / Ebisu プラットフォーム)
+Playwright で返礼品を取得し products テーブルへ upsert する。
 
-URL 構造: https://mifurusato.jp/item_list.html?ctg=CTG{XX}&sort=new&page={p}
-商品 ID: URL クエリ item_id={id}
+商品リストは fetch() AJAX で読み込まれるためヘッドレスでは取得不可。
+代替: 各カテゴリページの隠し input タグに埋め込まれたカートプリロードデータを抽出する。
+  input[name="ITEM_CD"]       → 商品ID
+  input[name="ITEM_NAME"]     → 商品名
+  input[name="ITEM_TEIKA"]    → 寄付金額（整数文字列）
+  input[name="ITEM_CATEGORY"] → カテゴリコード "CTG01:CTG0199:..."
+
+商品URL: https://mifurusato.jp/item/{ITEM_CD}.html
 """
 from __future__ import annotations
 
 import logging
 import re
-from urllib.parse import urljoin
 
-from playwright.sync_api import sync_playwright, Page, ElementHandle
+from playwright.sync_api import sync_playwright, Page
 
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
@@ -20,15 +25,27 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://mifurusato.jp"
 
-# (CTGコード, ラベル) — CTG01=肉, CTG02=米, CTG03=フルーツ, CTG04=魚介, CTG05=野菜, CTG06=酒
-CATEGORIES: list[tuple[str, str]] = [
-    ("CTG01", "肉"),
-    ("CTG02", "米"),
-    ("CTG03", "果物"),
-    ("CTG04", "魚"),
-    ("CTG05", "野菜"),
-    ("CTG06", "お酒"),
+# カテゴリページURL → カテゴリラベル（各ページで異なる隠し商品セットを期待）
+_PAGES: list[tuple[str, str]] = [
+    (f"{BASE_URL}/item_list.html?ctg=CTG01&sort=new", "肉"),
+    (f"{BASE_URL}/item_list.html?ctg=CTG02&sort=new", "米"),
+    (f"{BASE_URL}/item_list.html?ctg=CTG03&sort=new", "果物"),
+    (f"{BASE_URL}/item_list.html?ctg=CTG04&sort=new", "魚"),
+    (f"{BASE_URL}/item_list.html?ctg=CTG05&sort=new", "野菜"),
+    (f"{BASE_URL}/item_list.html?ctg=CTG08&sort=new", "お菓子"),
+    (f"{BASE_URL}/item_list.html?ctg=CTG09&sort=new", "加工品"),
 ]
+
+# ITEM_CATEGORY 先頭コードからカテゴリラベルへのマッピング
+_CAT_MAP: dict[str, str] = {
+    "CTG01": "肉",
+    "CTG02": "米",
+    "CTG03": "果物",
+    "CTG04": "魚",
+    "CTG05": "野菜",
+    "CTG08": "お菓子",
+    "CTG09": "加工品",
+}
 
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -36,104 +53,65 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-# /item_detail.html?item_id=123 または /item/123
-_PID_RE = re.compile(r"[?&]item_id=([\w-]+)|/item/([\w-]+)")
-_PRICE_RE = re.compile(r"[\d,]+")
+
+def _category_from_code(cat_code: str) -> str:
+    # "CTG01:CTG0199:..." の形式から先頭コードを取得
+    prefix = cat_code.split(":")[0][:5] if cat_code else ""
+    return _CAT_MAP.get(prefix, "その他")
 
 
-def _parse_price(text: str) -> int | None:
-    digits = re.sub(r"[^\d]", "", text)
-    return int(digits) if digits else None
-
-
-def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = (
-        card.query_selector("a[href*='item_detail']")
-        or card.query_selector("a[href*='/item/']")
-        or card.query_selector("a[href*='.html']")
-    )
-    if not link_el:
-        return None
-    href = link_el.get_attribute("href") or ""
-    m = _PID_RE.search(href)
-    if not m:
-        return None
-    pid = m.group(1) or m.group(2)
-    product_url = urljoin(BASE_URL, href)
-
-    title_el = (
-        card.query_selector(".product-name")
-        or card.query_selector("[class*='name']")
-        or card.query_selector("h3")
-        or card.query_selector("h2")
-    )
-    title = title_el.inner_text().strip() if title_el else None
-    if not title:
-        return None
-
-    price_el = (
-        card.query_selector("[class*='price']")
-        or card.query_selector("[class*='amount']")
-    )
-    price = _parse_price(price_el.inner_text()) if price_el else None
-
-    img_el = card.query_selector("img")
-    img_url = None
-    if img_el:
-        img_url = img_el.get_attribute("src") or img_el.get_attribute("data-src")
-
-    muni_el = (
-        card.query_selector("[class*='city']")
-        or card.query_selector("[class*='muni']")
-        or card.query_selector("[class*='area']")
-    )
-    municipality = muni_el.inner_text().strip() if muni_el else None
-
-    volume_g = extract_volume_g(title)
-
-    return {
-        "id":               f"mitsukoshi_{pid}",
-        "site_name":        "三越伊勢丹",
-        "title":            title,
-        "donation_amount":  price,
-        "volume_g":         volume_g,
-        "asset_rate":       None,
-        "market_price":     None,
-        "product_url":      product_url,
-        "image_url":        img_url,
-        "category":         category,
-        "municipality":     municipality,
-        "payment_campaigns": None,
-    }
-
-
-def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    url = f"{BASE_URL}/item_list.html?ctg={cat_id}&sort=new&page={p}"
+def _scrape_page(page: Page, url: str, fallback_category: str) -> list[dict]:
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
-    try:
-        page.wait_for_selector("a[href*='item']", timeout=15_000)
-    except Exception:
-        log.debug("三越伊勢丹 cat=%s p=%d: 商品カード未検出", category, p)
-        return []
+    items_data: list[dict] = page.evaluate("""() => {
+        const results = [];
+        const cds    = Array.from(document.querySelectorAll('input[name="ITEM_CD"]'));
+        const names  = Array.from(document.querySelectorAll('input[name="ITEM_NAME"]'));
+        const prices = Array.from(document.querySelectorAll('input[name="ITEM_TEIKA"]'));
+        const cats   = Array.from(document.querySelectorAll('input[name="ITEM_CATEGORY"]'));
 
-    cards = (
-        page.query_selector_all("[class*='product-card']")
-        or page.query_selector_all("[class*='item-card']")
-        or page.query_selector_all("li[class*='item']")
-        or page.query_selector_all("article")
-    )
+        for (let i = 0; i < cds.length; i++) {
+            results.push({
+                item_cd:       cds[i]   ? cds[i].value   : null,
+                item_name:     names[i] ? names[i].value : null,
+                item_teika:    prices[i] ? prices[i].value : null,
+                item_category: cats[i]  ? cats[i].value  : null,
+            });
+        }
+        return results;
+    }""")
 
-    seen: set[str] = set()
     rows: list[dict] = []
-    for card in cards:
+    for item in items_data:
+        item_cd = (item.get("item_cd") or "").strip()
+        title   = (item.get("item_name") or "").strip()
+        teika   = (item.get("item_teika") or "").strip()
+        cat_code = (item.get("item_category") or "").strip()
+
+        if not item_cd or not title or not teika:
+            continue
+
         try:
-            row = _extract_item(card, category)
-            if row and row["id"] not in seen and row["donation_amount"]:
-                seen.add(row["id"])
-                rows.append(row)
-        except Exception as e:
-            log.debug("item skip: %s", e)
+            price = int(teika)
+        except ValueError:
+            continue
+
+        category = _category_from_code(cat_code) if cat_code else fallback_category
+
+        rows.append({
+            "id":               f"mitsukoshi_{item_cd}",
+            "site_name":        "三越伊勢丹",
+            "title":            title,
+            "donation_amount":  price,
+            "volume_g":         extract_volume_g(title),
+            "asset_rate":       None,
+            "market_price":     None,
+            "product_url":      f"{BASE_URL}/item/{item_cd}.html",
+            "image_url":        None,
+            "category":         category,
+            "municipality":     None,
+            "payment_campaigns": None,
+        })
     return rows
 
 
@@ -143,6 +121,8 @@ class MitsukoshiScraper(BaseScraper):
 
     def run_sync(self, pages_per_category: int = 3) -> int:
         total = 0
+        seen: set[str] = set()
+
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
             ctx = browser.new_context(
@@ -152,19 +132,21 @@ class MitsukoshiScraper(BaseScraper):
             )
             page = ctx.new_page()
 
-            for cat_id, cat_name in CATEGORIES:
-                for p in range(1, pages_per_category + 1):
-                    try:
-                        rows = _scrape_page(page, cat_id, cat_name, p)
-                        if not rows:
-                            break
-                        n = self.upsert_batch(rows)
+            for url, cat_name in _PAGES:
+                try:
+                    rows = _scrape_page(page, url, cat_name)
+                    new_rows = [r for r in rows if r["id"] not in seen]
+                    for r in new_rows:
+                        seen.add(r["id"])
+                    if new_rows:
+                        n = self.upsert_batch(new_rows)
                         total += n
-                        log.info("三越伊勢丹 cat=%s p=%d: %d件 upsert", cat_name, p, n)
-                    except Exception as e:
-                        log.warning("三越伊勢丹 cat=%s p=%d エラー: %s", cat_name, p, e)
-                        break
-                    self.sleep()
+                        log.info("三越伊勢丹 cat=%s: %d件 upsert", cat_name, n)
+                    else:
+                        log.debug("三越伊勢丹 cat=%s: 新規商品なし（重複スキップ）", cat_name)
+                except Exception as e:
+                    log.warning("三越伊勢丹 cat=%s エラー: %s", cat_name, e)
+                self.sleep()
 
             browser.close()
 

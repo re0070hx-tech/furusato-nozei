@@ -2,8 +2,8 @@
 セゾンのふるさと納税スクレイパー
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-URL 構造: https://furusato.saisoncard.co.jp/products?category_id={id}&page={p}
-商品 ID: URL パス /products/{product_id}
+URL 構造: https://furusato.saisoncard.co.jp/products/list.php?category_group_id={id}&pageno={p}
+商品URL: /products/detail.php?product_id={id}
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import logging
 import re
 from urllib.parse import urljoin
 
-from playwright.sync_api import sync_playwright, Page, ElementHandle
+from playwright.sync_api import sync_playwright, Page
 
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://furusato.saisoncard.co.jp"
 
-# category_group_id (確認済み: /products/list.php?category_group_id={id})
+# (category_group_id, category_label) — 確認済み
 CATEGORIES: list[tuple[str, str]] = [
     ("1",  "肉"),
     ("2",  "魚"),
@@ -37,8 +37,6 @@ _USER_AGENT = (
 )
 
 _PID_RE = re.compile(r"product_id=(\d+)")
-_CLEAN_URL_RE = re.compile(r"[?&]")
-_PRICE_RE = re.compile(r"[\d,]+")
 
 
 def _parse_price(text: str) -> int | None:
@@ -46,91 +44,81 @@ def _parse_price(text: str) -> int | None:
     return int(digits) if digits else None
 
 
-def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='product_id=']")
-    if not link_el:
-        return None
-    href = link_el.get_attribute("href") or ""
-    m = _PID_RE.search(href)
-    if not m:
-        return None
-    pid = m.group(1)
-    product_url = urljoin(BASE_URL, f"/products/detail.php?product_id={pid}")
-
-    title_el = (
-        card.query_selector(".product-name")
-        or card.query_selector("[class*='name']")
-        or card.query_selector("h3")
-        or card.query_selector("h2")
-    )
-    title = title_el.inner_text().strip() if title_el else None
-    if not title:
-        return None
-
-    price_el = (
-        card.query_selector("[class*='price']")
-        or card.query_selector("[class*='amount']")
-    )
-    price = _parse_price(price_el.inner_text()) if price_el else None
-
-    img_el = card.query_selector("img")
-    img_url = None
-    if img_el:
-        img_url = img_el.get_attribute("src") or img_el.get_attribute("data-src")
-
-    muni_el = (
-        card.query_selector("[class*='city']")
-        or card.query_selector("[class*='muni']")
-        or card.query_selector("[class*='pref']")
-    )
-    municipality = muni_el.inner_text().strip() if muni_el else None
-
-    volume_g = extract_volume_g(title)
-
-    return {
-        "id":               f"saison_{pid}",
-        "site_name":        "セゾンのふるさと納税",
-        "title":            title,
-        "donation_amount":  price,
-        "volume_g":         volume_g,
-        "asset_rate":       None,
-        "market_price":     None,
-        "product_url":      product_url,
-        "image_url":        img_url,
-        "category":         category,
-        "municipality":     municipality,
-        "payment_campaigns": None,
-    }
-
-
 def _scrape_page(page: Page, cat_id: str, category: str, p: int) -> list[dict]:
-    # 確認済みURL: /products/list.php?category_group_id={id}&pageno={p}
     url = f"{BASE_URL}/products/list.php?category_group_id={cat_id}&pageno={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='product_id=']", timeout=15_000)
+        page.wait_for_selector("a[href*='product_id=']", timeout=20_000)
     except Exception:
         log.debug("セゾン cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
-    cards = (
-        page.query_selector_all("[class*='product-card']")
-        or page.query_selector_all("[class*='item-card']")
-        or page.query_selector_all("li[class*='item']")
-        or page.query_selector_all("article")
-    )
+    items_data: list[dict] = page.evaluate("""() => {
+        const results = [];
+        const seen = new Set();
+        document.querySelectorAll("a[href*='product_id=']").forEach(a => {
+            const href = a.getAttribute("href") || "";
+            const m = href.match(/product_id=(\\d+)/);
+            if (!m) return;
+            const pid = m[1];
+            if (seen.has(pid)) return;
+            seen.add(pid);
+
+            const card = a.closest("li")
+                      || a.closest("article")
+                      || a.closest("[class*='item']")
+                      || a.closest("[class*='card']")
+                      || a;
+            const titleEl = card.querySelector("[class*='name'], [class*='title'], h3, h2");
+            const priceEl = card.querySelector("[class*='price'], [class*='amount']");
+            const imgEl   = card.querySelector("img");
+            const muniEl  = card.querySelector("[class*='city'], [class*='muni'], [class*='pref']");
+
+            results.push({
+                pid,
+                href,
+                title:        titleEl ? titleEl.innerText.trim() : null,
+                price_text:   priceEl ? priceEl.innerText.trim() : "",
+                img_url: imgEl
+                    ? (imgEl.getAttribute("src") || imgEl.getAttribute("data-src") || null)
+                    : null,
+                municipality: muniEl ? muniEl.innerText.trim() : null,
+            });
+        });
+        return results;
+    }""")
 
     seen: set[str] = set()
     rows: list[dict] = []
-    for card in cards:
-        try:
-            row = _extract_item(card, category)
-            if row and row["id"] not in seen and row["donation_amount"]:
-                seen.add(row["id"])
-                rows.append(row)
-        except Exception as e:
-            log.debug("item skip: %s", e)
+    for item in items_data:
+        pid = item.get("pid")
+        if not pid or pid in seen:
+            continue
+        seen.add(pid)
+
+        title = item.get("title") or ""
+        price = _parse_price(item.get("price_text") or "")
+        if not title or not price:
+            continue
+
+        href = item.get("href") or ""
+        product_url = urljoin(BASE_URL, href) if href.startswith("/") else f"{BASE_URL}/products/detail.php?product_id={pid}"
+
+        rows.append({
+            "id":               f"saison_{pid}",
+            "site_name":        "セゾンのふるさと納税",
+            "title":            title,
+            "donation_amount":  price,
+            "volume_g":         extract_volume_g(title),
+            "asset_rate":       None,
+            "market_price":     None,
+            "product_url":      product_url,
+            "image_url":        item.get("img_url"),
+            "category":         category,
+            "municipality":     item.get("municipality"),
+            "payment_campaigns": None,
+        })
     return rows
 
 

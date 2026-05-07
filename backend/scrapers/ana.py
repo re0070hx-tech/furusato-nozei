@@ -11,7 +11,7 @@ import logging
 import re
 from urllib.parse import urljoin
 
-from playwright.sync_api import sync_playwright, Page, ElementHandle
+from playwright.sync_api import sync_playwright, Page
 
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
@@ -52,94 +52,73 @@ def _parse_price(text: str) -> int | None:
     return int(m.group()) if m else None
 
 
-def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/donation/g/']")
-    if not link_el:
-        return None
-    href = link_el.get_attribute("href") or ""
-    m = _PID_RE.search(href)
-    if not m:
-        return None
-    pid = m.group(1)
-    product_url = urljoin(BASE_URL, f"/donation/g/g{pid}/")
-
-    # タイトルは <a title="..."> 属性またはテキストノード
-    title = link_el.get_attribute("title") or ""
-    if not title:
-        title_el = (
-            card.query_selector(".p-item-name")
-            or card.query_selector(".item-name")
-            or card.query_selector("h3")
-            or card.query_selector("h2")
-        )
-        title = title_el.inner_text().strip() if title_el else ""
-    title = title.strip()
-    if not title:
-        return None
-
-    price_el = (
-        card.query_selector(".price")
-        or card.query_selector("[class*='price']")
-        or card.query_selector("[class*='amount']")
-    )
-    price = _parse_price(price_el.inner_text()) if price_el else None
-
-    img_el = card.query_selector("img")
-    img_url = img_el.get_attribute("src") if img_el else None
-
-    # 自治体リンク: /donation/top/{id}/
-    muni_el = card.query_selector("a[href*='/donation/top/']")
-    municipality = muni_el.inner_text().strip() if muni_el else None
-
-    volume_g = extract_volume_g(title)
-
-    return {
-        "id":               f"ana_{pid}",
-        "site_name":        "ANAふるさと納税",
-        "title":            title,
-        "donation_amount":  price,
-        "volume_g":         volume_g,
-        "asset_rate":       None,
-        "market_price":     None,
-        "product_url":      product_url,
-        "image_url":        img_url,
-        "category":         category,
-        "municipality":     municipality,
-        "payment_campaigns": None,
-    }
-
-
 def _scrape_page(page: Page, cat_code: str, category: str, p: int) -> list[dict]:
-    # ANA 確認済みURL: /donation/w/{wCL_code}/?p={page}
     url = f"{BASE_URL}/donation/w/{cat_code}/?p={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector(
-            "a[href*='/donation/g/']",
-            timeout=15_000,
-        )
+        page.wait_for_selector("a[href*='/donation/g/g']", timeout=20_000)
     except Exception:
         log.debug("ANA cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
-    cards = (
-        page.query_selector_all("li[class*='p-item']")
-        or page.query_selector_all("li[class*='item']")
-        or page.query_selector_all("ul[class*='list'] > li")
-        or page.query_selector_all("article")
-    )
+    # 各 li には画像リンクとテキストリンクの2つが存在するため
+    # innerText が空のリンク（画像のみ）を JS 側でスキップする
+    items_data: list[dict] = page.evaluate("""() => {
+        const results = [];
+        const seen = new Set();
+        document.querySelectorAll("a[href*='/donation/g/g']").forEach(a => {
+            const title = a.innerText.trim();
+            if (!title) return;
+            const href = a.getAttribute("href") || "";
+            const m = href.match(/\\/donation\\/g\\/g([\\w-]+)\\/?/);
+            if (!m) return;
+            const pid = m[1];
+            if (seen.has(pid)) return;
+            seen.add(pid);
 
-    seen: set[str] = set()
+            const container = a.closest("li") || a.parentElement;
+            const priceEl = container
+                ? container.querySelector("[class*='price'],[class*='amount']") : null;
+            const muniEl  = container
+                ? container.querySelector("a[href*='/donation/top/']") : null;
+            const imgEl   = container ? container.querySelector("img") : null;
+
+            results.push({
+                pid,
+                href,
+                title,
+                price_text:   priceEl ? priceEl.innerText.trim() : "",
+                municipality: muniEl  ? muniEl.innerText.trim()  : null,
+                img_url:      imgEl
+                    ? (imgEl.getAttribute("src") || imgEl.getAttribute("data-src") || null)
+                    : null,
+            });
+        });
+        return results;
+    }""")
+
     rows: list[dict] = []
-    for card in cards:
-        try:
-            row = _extract_item(card, category)
-            if row and row["id"] not in seen and row["donation_amount"]:
-                seen.add(row["id"])
-                rows.append(row)
-        except Exception as e:
-            log.debug("item skip: %s", e)
+    for item in items_data:
+        price = _parse_price(item.get("price_text") or "")
+        if not price:
+            continue
+        pid   = item["pid"]
+        title = item["title"]
+        rows.append({
+            "id":               f"ana_{pid}",
+            "site_name":        "ANAふるさと納税",
+            "title":            title,
+            "donation_amount":  price,
+            "volume_g":         extract_volume_g(title),
+            "asset_rate":       None,
+            "market_price":     None,
+            "product_url":      urljoin(BASE_URL, item["href"]),
+            "image_url":        item.get("img_url"),
+            "category":         category,
+            "municipality":     item.get("municipality"),
+            "payment_campaigns": None,
+        })
     return rows
 
 

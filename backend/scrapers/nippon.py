@@ -1,7 +1,9 @@
 """
 ふるさと納税ニッポン！スクレイパー
-https://furusato-nippon.com/category/{slug}?page={p}
-商品 ID: URL パス /item/{id} の末尾数値
+Playwright で返礼品一覧を取得し products テーブルへ upsert する。
+
+URL 構造: https://furusato-nippon.com/category/{slug}?page={p}
+商品URL: /item/{id}
 """
 from __future__ import annotations
 
@@ -9,7 +11,7 @@ import logging
 import re
 from urllib.parse import urljoin
 
-from playwright.sync_api import sync_playwright, Page, ElementHandle
+from playwright.sync_api import sync_playwright, Page
 
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
@@ -40,69 +42,12 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PRICE_RE = re.compile(r"[\d,]+")
-_PID_RE   = re.compile(r"/item/(\d+)")
+_PID_RE = re.compile(r"/item/(\d+)")
 
 
 def _parse_price(text: str) -> int | None:
-    m = _PRICE_RE.search(text.replace(",", ""))
-    return int(m.group()) if m else None
-
-
-def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/item/']")
-    if not link_el:
-        return None
-    href = link_el.get_attribute("href") or ""
-    m = _PID_RE.search(href)
-    if not m:
-        return None
-    pid = m.group(1)
-    product_url = urljoin(BASE_URL, href.split("?")[0])
-
-    title_el = (
-        card.query_selector(".product-name")
-        or card.query_selector(".item-name")
-        or card.query_selector("h3")
-        or card.query_selector("h2")
-    )
-    title = title_el.inner_text().strip() if title_el else None
-    if not title:
-        return None
-
-    price_el = (
-        card.query_selector(".price")
-        or card.query_selector("[class*='price']")
-        or card.query_selector("[class*='amount']")
-    )
-    price = _parse_price(price_el.inner_text()) if price_el else None
-
-    img_el = card.query_selector("img")
-    img_url = img_el.get_attribute("src") if img_el else None
-
-    muni_el = (
-        card.query_selector("[class*='city']")
-        or card.query_selector("[class*='muni']")
-        or card.query_selector("[class*='area']")
-    )
-    municipality = muni_el.inner_text().strip() if muni_el else None
-
-    volume_g = extract_volume_g(title)
-
-    return {
-        "id":               f"nippon_{pid}",
-        "site_name":        "ふるさと納税ニッポン！",
-        "title":            title,
-        "donation_amount":  price,
-        "volume_g":         volume_g,
-        "asset_rate":       None,
-        "market_price":     None,
-        "product_url":      product_url,
-        "image_url":        img_url,
-        "category":         category,
-        "municipality":     municipality,
-        "payment_campaigns": None,
-    }
+    digits = re.sub(r"[^\d]", "", text)
+    return int(digits) if digits else None
 
 
 def _scrape_page(page: Page, slug: str, category: str, p: int) -> list[dict]:
@@ -110,28 +55,77 @@ def _scrape_page(page: Page, slug: str, category: str, p: int) -> list[dict]:
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='/item/']", timeout=15_000)
+        page.wait_for_selector("a[href*='/item/']", timeout=20_000)
     except Exception:
         log.debug("ニッポン！ cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
-    cards = (
-        page.query_selector_all("li[class*='product']")
-        or page.query_selector_all("li[class*='item']")
-        or page.query_selector_all("ul[class*='list'] > li")
-        or page.query_selector_all("article")
-    )
+    items_data: list[dict] = page.evaluate("""() => {
+        const results = [];
+        const seen = new Set();
+        document.querySelectorAll("a[href*='/item/']").forEach(a => {
+            const href = a.getAttribute("href") || "";
+            const m = href.match(/\\/item\\/(\\d+)/);
+            if (!m) return;
+            const pid = m[1];
+            if (seen.has(pid)) return;
+            seen.add(pid);
+
+            const card = a.closest("li")
+                      || a.closest("article")
+                      || a.closest("[class*='product']")
+                      || a.closest("[class*='item']")
+                      || a.closest("[class*='card']")
+                      || a;
+            const titleEl = card.querySelector("[class*='name'], [class*='title'], h3, h2");
+            const priceEl = card.querySelector("[class*='price'], [class*='amount']");
+            const imgEl   = card.querySelector("img");
+            const muniEl  = card.querySelector("[class*='city'], [class*='muni'], [class*='area']");
+
+            results.push({
+                pid,
+                href,
+                title:        titleEl ? titleEl.innerText.trim() : null,
+                price_text:   priceEl ? priceEl.innerText.trim() : "",
+                img_url: imgEl
+                    ? (imgEl.getAttribute("src") || imgEl.getAttribute("data-src") || null)
+                    : null,
+                municipality: muniEl ? muniEl.innerText.trim() : null,
+            });
+        });
+        return results;
+    }""")
 
     seen: set[str] = set()
     rows: list[dict] = []
-    for card in cards:
-        try:
-            row = _extract_item(card, category)
-            if row and row["id"] not in seen and row["donation_amount"]:
-                seen.add(row["id"])
-                rows.append(row)
-        except Exception as e:
-            log.debug("item skip: %s", e)
+    for item in items_data:
+        pid = item.get("pid")
+        if not pid or pid in seen:
+            continue
+        seen.add(pid)
+
+        title = item.get("title") or ""
+        price = _parse_price(item.get("price_text") or "")
+        if not title or not price:
+            continue
+
+        href = item.get("href") or ""
+        product_url = urljoin(BASE_URL, href.split("?")[0]) if href else f"{BASE_URL}/item/{pid}"
+
+        rows.append({
+            "id":               f"nippon_{pid}",
+            "site_name":        "ふるさと納税ニッポン！",
+            "title":            title,
+            "donation_amount":  price,
+            "volume_g":         extract_volume_g(title),
+            "asset_rate":       None,
+            "market_price":     None,
+            "product_url":      product_url,
+            "image_url":        item.get("img_url"),
+            "category":         category,
+            "municipality":     item.get("municipality"),
+            "payment_campaigns": None,
+        })
     return rows
 
 

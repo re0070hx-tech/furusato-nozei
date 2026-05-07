@@ -45,7 +45,11 @@ def _parse_price(text: str) -> int | None:
 def _scrape_page(page: Page, cat_id: str, category: str, offset: int) -> list[dict]:
     url = f"{BASE_URL}/donate/s/?categories={cat_id}&offset={offset}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-    page.wait_for_selector("a[href*='/product/detail/']", timeout=15_000)
+    try:
+        page.wait_for_selector("a[href*='/product/detail/']", timeout=30_000)
+    except Exception:
+        log.debug("ふるさと本舗 cat=%s offset=%d: 商品カード未検出", category, offset)
+        return []
 
     # JS evaluate で全カードデータを一括抽出
     items_data: list[dict] = page.evaluate("""() => {

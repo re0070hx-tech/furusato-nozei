@@ -94,11 +94,13 @@ def _scrape_page(page: Page, category_id: int, category: str, p: int) -> list[di
     page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
     items = page.query_selector_all("ul.list-product li")
+    seen: set[str] = set()
     rows: list[dict] = []
     for li in items:
         try:
             row = _extract_item(li, category)
-            if row:
+            if row and row["id"] not in seen:
+                seen.add(row["id"])
                 rows.append(row)
         except Exception as e:
             log.debug("item skip: %s", e)

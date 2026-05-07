@@ -21,12 +21,9 @@ load_dotenv(Path(__file__).parent.parent.parent / ".env")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-# 2026-04-01 新API (openapi.rakuten.co.jp) — UUID形式 applicationId + accessKey 対応
-RAKUTEN_ENDPOINT = "https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401"
-RAKUTEN_APP_URL  = os.environ.get("RAKUTEN_APP_URL", "https://localhost:3000")  # ポータル登録URL
+RAKUTEN_ENDPOINT = "https://app.rakuten.co.jp/services/api/IchibaItem/Search/20170706"
 
 APP_ID       = os.environ["RAKUTEN_APP_ID"]
-ACCESS_KEY   = os.environ["RAKUTEN_ACCESS_KEY"]
 AFFILIATE_ID = os.environ["RAKUTEN_AFFILIATE_ID"]
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
@@ -99,12 +96,7 @@ def fetch_items(keyword: str, page: int = 1, hits: int = 30) -> dict:
         "page":          page,
         "sort":          "-reviewCount",
     }
-    # 新API認証: accessKey はヘッダーで渡す（Origin はポータル登録URLと一致させる）
-    headers = {
-        "accessKey": ACCESS_KEY,
-        "Origin":    RAKUTEN_APP_URL,
-    }
-    resp = requests.get(RAKUTEN_ENDPOINT, params=params, headers=headers, timeout=15)
+    resp = requests.get(RAKUTEN_ENDPOINT, params=params, timeout=15)
     resp.raise_for_status()
     return resp.json()
 

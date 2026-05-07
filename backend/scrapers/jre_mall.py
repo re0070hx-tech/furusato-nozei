@@ -2,10 +2,11 @@
 JRE MALLふるさと納税スクレイパー
 Playwright で返礼品一覧を取得し products テーブルへ upsert する。
 
-確認済みURL構造 (2026-05):
-  一覧: https://furusato.jreast.co.jp/furusato/prd/?sc={category_code}&page={p}
-  商品: https://furusato.jreast.co.jp/furusato/prd/{product_id}/
-  カテゴリコード: cat1=肉, cat2=魚, cat3=米・穀物, cat4=果物, cat5=野菜, cat8=家電
+URL 構造: https://furusato.jreast.co.jp/furusato/prd/cid{N}/?page={p}
+商品データ: 各カード <a> タグの onclick 属性に埋め込まれた GTM データレイヤーを正規表現で抽出
+  例: setDataLayerTd({'event':'select_item','shop':'F122','ecommerce':{'currency':'JPY',
+        'items':[{'item_name':'佐賀牛...','item_id':'F122-FDB047','price':18000,
+                  'item_brand':'F122_佐賀県吉野ヶ里町',...}]}})
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import logging
 import re
 from urllib.parse import urljoin
 
-from playwright.sync_api import sync_playwright, Page, ElementHandle
+from playwright.sync_api import sync_playwright, Page
 
 from scrapers.base_scraper import BaseScraper
 from lib.volume_extractor import extract_volume_g
@@ -22,14 +23,20 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://furusato.jreast.co.jp"
 
-# (sc パラメータ, category_label)
-CATEGORIES: list[tuple[str, str]] = [
-    ("cat1", "肉"),
-    ("cat2", "魚"),
-    ("cat3", "米"),
-    ("cat4", "果物"),
-    ("cat5", "野菜"),
-    ("cat8", "家電"),
+# (cid 番号, category_label) — 2026-05 実サイト確認済み
+CATEGORIES: list[tuple[int, str]] = [
+    (1,   "肉"),
+    (8,   "魚"),
+    (20,  "米"),
+    (26,  "果物"),
+    (37,  "野菜"),
+    (53,  "お酒"),
+    (67,  "お菓子"),
+    (84,  "麺"),
+    (91,  "調味料"),
+    (100, "旅行"),
+    (107, "雑貨"),
+    (126, "家電"),
 ]
 
 _USER_AGENT = (
@@ -38,108 +45,88 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_PID_RE = re.compile(r"/furusato/prd/([^/?]+)")
-_PRICE_RE = re.compile(r"[\d,]+")
+# onclick 属性内の GTM データレイヤーから商品情報を抽出
+_NAME_RE  = re.compile(r"'item_name'\s*:\s*'([^']+)'")
+_ID_RE    = re.compile(r"'item_id'\s*:\s*'([^']+)'")
+_PRICE_RE = re.compile(r"'price'\s*:\s*(\d+)")
+_BRAND_RE = re.compile(r"'item_brand'\s*:\s*'([^']+)'")
 
 
-def _parse_price(text: str) -> int | None:
-    digits = re.sub(r"[^\d]", "", text)
-    return int(digits) if digits else None
-
-
-def _extract_item(card: ElementHandle, category: str) -> dict | None:
-    link_el = card.query_selector("a[href*='/furusato/prd/']")
-    if not link_el:
+def _parse_onclick(onclick: str) -> dict | None:
+    m_name  = _NAME_RE.search(onclick)
+    m_id    = _ID_RE.search(onclick)
+    m_price = _PRICE_RE.search(onclick)
+    m_brand = _BRAND_RE.search(onclick)
+    if not (m_name and m_id and m_price):
         return None
-    href = link_el.get_attribute("href") or ""
-    m = _PID_RE.search(href)
-    if not m:
-        return None
-    pid = m.group(1)
-    product_url = urljoin(BASE_URL, f"/furusato/prd/{pid}/")
-
-    title_el = (
-        card.query_selector("[class*='product-name']")
-        or card.query_selector("[class*='item-name']")
-        or card.query_selector("[class*='goods-name']")
-        or card.query_selector("h3")
-        or card.query_selector("h2")
-    )
-    title = title_el.inner_text().strip() if title_el else None
-    if not title:
-        # img alt から取得
-        img_el = card.query_selector("img")
-        if img_el:
-            title = (img_el.get_attribute("alt") or "").strip()
-    if not title:
-        return None
-
-    price_el = (
-        card.query_selector("[class*='price']")
-        or card.query_selector("[class*='amount']")
-        or card.query_selector("[class*='donation']")
-    )
-    price = _parse_price(price_el.inner_text()) if price_el else None
-
-    img_el = card.query_selector("img")
-    img_url = None
-    if img_el:
-        img_url = img_el.get_attribute("src") or img_el.get_attribute("data-src")
-
-    muni_el = (
-        card.query_selector("[class*='area']")
-        or card.query_selector("[class*='city']")
-        or card.query_selector("[class*='muni']")
-        or card.query_selector("[class*='pref']")
-    )
-    municipality = muni_el.inner_text().strip() if muni_el else None
-
-    volume_g = extract_volume_g(title)
-
+    brand = m_brand.group(1) if m_brand else ""
+    # item_brand 形式: "F122_佐賀県吉野ヶ里町" → municipality は "_" 以降
+    parts = brand.split("_", 1)
+    municipality = parts[1] if len(parts) > 1 else None
     return {
-        "id":               f"jre_mall_{pid}",
-        "site_name":        "JRE MALL",
-        "title":            title,
-        "donation_amount":  price,
-        "volume_g":         volume_g,
-        "asset_rate":       None,
-        "market_price":     None,
-        "product_url":      product_url,
-        "image_url":        img_url,
-        "category":         category,
-        "municipality":     municipality,
-        "payment_campaigns": None,
+        "item_id":      m_id.group(1),
+        "title":        m_name.group(1),
+        "price":        int(m_price.group(1)),
+        "municipality": municipality,
     }
 
 
-def _scrape_page(page: Page, cat: str, category: str, p: int) -> list[dict]:
-    url = f"{BASE_URL}/furusato/prd/?sc={cat}&page={p}&disp_number=60"
+def _scrape_page(page: Page, cat_id: int, category: str, p: int) -> list[dict]:
+    url = f"{BASE_URL}/furusato/prd/cid{cat_id}/?page={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
 
     try:
-        page.wait_for_selector("a[href*='/furusato/prd/']", timeout=15_000)
+        page.wait_for_selector(".ec-shelfGrid__item", timeout=20_000)
     except Exception:
         log.debug("JRE MALL cat=%s p=%d: 商品カード未検出", category, p)
         return []
 
-    cards = (
-        page.query_selector_all("[class*='product-card']")
-        or page.query_selector_all("[class*='item-card']")
-        or page.query_selector_all("[class*='goods-card']")
-        or page.query_selector_all("li[class*='item']")
-        or page.query_selector_all("article")
-    )
+    items_data: list[dict] = page.evaluate("""() => {
+        const results = [];
+        document.querySelectorAll(".ec-shelfGrid__item").forEach(item => {
+            const a = item.querySelector("a[onclick]") || item.querySelector("a[href]");
+            if (!a) return;
+            const imgEl = item.querySelector("img");
+            results.push({
+                href:    a.getAttribute("href") || "",
+                onclick: a.getAttribute("onclick") || "",
+                img_url: imgEl
+                    ? (imgEl.getAttribute("src") || imgEl.getAttribute("data-src") || null)
+                    : null,
+            });
+        });
+        return results;
+    }""")
 
     seen: set[str] = set()
     rows: list[dict] = []
-    for card in cards:
-        try:
-            row = _extract_item(card, category)
-            if row and row["id"] not in seen and row["donation_amount"]:
-                seen.add(row["id"])
-                rows.append(row)
-        except Exception as e:
-            log.debug("item skip: %s", e)
+    for item in items_data:
+        parsed = _parse_onclick(item.get("onclick") or "")
+        if not parsed:
+            continue
+        item_id = parsed["item_id"]
+        if item_id in seen:
+            continue
+        seen.add(item_id)
+
+        href = item.get("href") or ""
+        product_url = urljoin(BASE_URL, href) if href else f"{BASE_URL}/furusato/prd/cid{cat_id}/"
+
+        title = parsed["title"]
+        rows.append({
+            "id":               f"jre_mall_{item_id}",
+            "site_name":        "JRE MALL",
+            "title":            title,
+            "donation_amount":  parsed["price"],
+            "volume_g":         extract_volume_g(title),
+            "asset_rate":       None,
+            "market_price":     None,
+            "product_url":      product_url,
+            "image_url":        item.get("img_url"),
+            "category":         category,
+            "municipality":     parsed["municipality"],
+            "payment_campaigns": None,
+        })
     return rows
 
 
@@ -158,10 +145,10 @@ class JreMallScraper(BaseScraper):
             )
             page = ctx.new_page()
 
-            for cat, cat_name in CATEGORIES:
+            for cat_id, cat_name in CATEGORIES:
                 for p in range(1, pages_per_category + 1):
                     try:
-                        rows = _scrape_page(page, cat, cat_name, p)
+                        rows = _scrape_page(page, cat_id, cat_name, p)
                         if not rows:
                             break
                         n = self.upsert_batch(rows)
