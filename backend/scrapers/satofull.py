@@ -120,12 +120,22 @@ class SatofullScraper(BaseScraper):
     def run_sync(self, pages_per_category: int = 3) -> int:
         total = 0
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=True)
+            browser = pw.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
             ctx = browser.new_context(
                 user_agent=_USER_AGENT,
                 viewport={"width": 1280, "height": 800},
                 locale="ja-JP",
             )
+            # headless 検知の主要フラグを無効化
+            ctx.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
+                Object.defineProperty(navigator, 'languages', {get: () => ['ja-JP','ja','en-US','en']});
+                window.chrome = {runtime: {}};
+            """)
             page = ctx.new_page()
 
             for cat, cat_name in CATEGORIES:
