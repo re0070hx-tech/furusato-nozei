@@ -157,7 +157,7 @@ class JalScraper(BaseScraper):
     site_name = "JALふるさと納税"
     site_id   = "jal"
 
-    def run_sync(self, pages_per_category: int = 5) -> int:
+    def run_sync(self, pages_per_category: int = 10) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)

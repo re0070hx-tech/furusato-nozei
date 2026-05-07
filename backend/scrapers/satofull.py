@@ -117,7 +117,7 @@ class SatofullScraper(BaseScraper):
     site_name = "さとふる"
     site_id   = "satofull"
 
-    def run_sync(self, pages_per_category: int = 3) -> int:
+    def run_sync(self, pages_per_category: int = 30) -> int:
         total = 0
         with sync_playwright() as pw:
             # Cloudflare Bot Management 対策:

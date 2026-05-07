@@ -119,7 +119,7 @@ class MitsukoshiScraper(BaseScraper):
     site_name = "三越伊勢丹"
     site_id   = "mitsukoshi"
 
-    def run_sync(self, pages_per_category: int = 3) -> int:
+    def run_sync(self, pages_per_category: int = 10) -> int:
         total = 0
         seen: set[str] = set()
 

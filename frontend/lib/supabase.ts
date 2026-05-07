@@ -27,6 +27,7 @@ export type Product = {
   points_type: string | null;
   payment_campaigns: Record<string, unknown> | null;
   updated_at?: string;
+  last_seen_at?: string;
 };
 
 export type Site = {
@@ -62,6 +63,12 @@ function resolveCategory(cat: string): string[] {
   return CATEGORY_ALIASES[cat] ?? [cat];
 }
 
+// 180日以内にスクレイプ確認された商品のみ表示
+const ACTIVE_THRESHOLD_DAYS = 180;
+function activeThresholdIso(): string {
+  return new Date(Date.now() - ACTIVE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
 // ─── 商品取得 (サイトフィルタを DB の where 句で実行) ────────────────
 export async function fetchProducts(opts?: {
   category?: string;
@@ -74,6 +81,9 @@ export async function fetchProducts(opts?: {
   offset?: number;
 }): Promise<Product[]> {
   let q = supabase.from("products").select("*");
+
+  // 廃止・売切れ商品を除外（180日以上スクレイプされていない商品は非表示）
+  q = q.gt("last_seen_at", activeThresholdIso());
 
   if (opts?.category) q = q.in("category", resolveCategory(opts.category));
   // ← サイトフィルタをクライアント側ではなく DB の where 句で実行 (pagination 修正)
@@ -122,6 +132,8 @@ export async function countProducts(opts?: {
   minRate?: number;
 }): Promise<number> {
   let q = supabase.from("products").select("id", { count: "exact", head: true });
+
+  q = q.gt("last_seen_at", activeThresholdIso());
 
   if (opts?.category)  q = q.eq("category", opts.category);
   if (opts?.siteId)    q = q.eq("site_id", opts.siteId);

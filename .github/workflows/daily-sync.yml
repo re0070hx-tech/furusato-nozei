@@ -18,7 +18,7 @@ jobs:
   scrape:
     name: "Scrape: ${{ matrix.site.id }}"
     runs-on: ${{ matrix.site.runner || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     continue-on-error: true
 
     strategy:

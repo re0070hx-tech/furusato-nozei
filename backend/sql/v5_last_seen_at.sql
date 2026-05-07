@@ -10,7 +10,7 @@ ALTER TABLE products
 CREATE INDEX IF NOT EXISTS products_last_seen_at_idx ON products (last_seen_at);
 
 -- 非表示にする基準の目安:
---   WHERE last_seen_at > now() - interval '30 days'
--- 30日以内にスクレイプで確認された商品のみ表示する。
--- pages_per_category=5 の場合、上位150件/カテゴリは毎日確認されるため
--- 150件より下位の商品は30日で自然に非表示になる。
+--   WHERE last_seen_at > now() - interval '180 days'
+-- 180日以内にスクレイプで確認された商品のみ表示する。
+-- pages_per_category=10 の場合、上位600件/カテゴリは毎日確認されるため
+-- 600件より下位のロングテール商品も半年間は有効として残る。

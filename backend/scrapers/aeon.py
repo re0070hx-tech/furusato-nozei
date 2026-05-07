@@ -143,7 +143,7 @@ class AeonScraper(BaseScraper):
     site_name = "まいふる"
     site_id   = "maifuru"
 
-    def run_sync(self, pages_per_category: int = 3) -> int:
+    def run_sync(self, pages_per_category: int = 10) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)

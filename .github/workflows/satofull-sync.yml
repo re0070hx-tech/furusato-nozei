@@ -10,7 +10,7 @@ jobs:
   scrape-satofull:
     name: "Scrape: satofull"
     runs-on: self-hosted
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4

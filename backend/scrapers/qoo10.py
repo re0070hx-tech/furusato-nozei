@@ -133,7 +133,7 @@ class Qoo10Scraper(BaseScraper):
     site_name = "Qoo10"
     site_id   = "qoo10"
 
-    def run_sync(self, pages_per_category: int = 5) -> int:
+    def run_sync(self, pages_per_category: int = 10) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)

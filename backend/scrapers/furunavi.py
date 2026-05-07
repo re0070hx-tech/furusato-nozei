@@ -111,7 +111,7 @@ class FuranaviScraper(BaseScraper):
     site_name = "ふるなび"
     site_id   = "furunavi"
 
-    def run_sync(self, pages_per_category: int = 5) -> int:
+    def run_sync(self, pages_per_category: int = 10) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)

@@ -128,7 +128,7 @@ class WhiskeyFurusatoScraper(BaseScraper):
     site_name = "NFTウイスキーふるさと納税"
     site_id   = "whiskey_furusato"
 
-    def run_sync(self, pages_per_category: int = 3) -> int:
+    def run_sync(self, pages_per_category: int = 10) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
