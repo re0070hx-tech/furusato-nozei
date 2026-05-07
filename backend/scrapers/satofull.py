@@ -120,8 +120,14 @@ class SatofullScraper(BaseScraper):
     def run_sync(self, pages_per_category: int = 3) -> int:
         total = 0
         with sync_playwright() as pw:
+            # Cloudflare Bot Management 対策:
+            # self-hosted Windows 実機では headless=False が有効
+            # CI (GitHub Actions ubuntu) では環境変数 SATOFULL_HEADLESS=1 を設定
+            import os as _os
+            _headless = _os.environ.get("SATOFULL_HEADLESS", "0") == "1"
             browser = pw.chromium.launch(
-                headless=True,
+                headless=_headless,
+                channel="chrome" if not _headless else None,  # 実Chromeを優先使用
                 args=["--disable-blink-features=AutomationControlled"],
             )
             ctx = browser.new_context(
@@ -129,7 +135,6 @@ class SatofullScraper(BaseScraper):
                 viewport={"width": 1280, "height": 800},
                 locale="ja-JP",
             )
-            # headless 検知の主要フラグを無効化
             ctx.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                 Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
