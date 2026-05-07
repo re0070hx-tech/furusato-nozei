@@ -44,9 +44,10 @@ def _parse_price(text: str) -> int | None:
 
 def _scrape_page(page: Page, cat_id: str, category: str, offset: int) -> list[dict]:
     url = f"{BASE_URL}/donate/s/?categories={cat_id}&offset={offset}"
-    page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+    # Vue.js SPA: domcontentloaded の後に JS が API を叩いて商品を挿入するため networkidle を待つ
+    page.goto(url, wait_until="networkidle", timeout=60_000)
     try:
-        page.wait_for_selector("a[href*='/product/detail/']", timeout=30_000)
+        page.wait_for_selector("a[href*='/product/detail/']", timeout=20_000)
     except Exception:
         log.debug("ふるさと本舗 cat=%s offset=%d: 商品カード未検出", category, offset)
         return []
@@ -117,7 +118,7 @@ class HonpoScraper(BaseScraper):
     site_name = "ふるさと本舗"
     site_id   = "honpo"
 
-    def run_sync(self, pages_per_category: int = 3) -> int:
+    def run_sync(self, pages_per_category: int = 5) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)

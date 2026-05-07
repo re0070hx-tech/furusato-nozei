@@ -178,7 +178,7 @@ class DshoppingScraper(BaseScraper):
     site_name = "dショッピングふるさと納税"
     site_id   = "dshopping"
 
-    def run_sync(self, pages_per_category: int = 3) -> int:
+    def run_sync(self, pages_per_category: int = 5) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
@@ -186,6 +186,15 @@ class DshoppingScraper(BaseScraper):
                 user_agent=_USER_AGENT,
                 viewport={"width": 1280, "height": 800},
                 locale="ja-JP",
+                extra_http_headers={
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "ja,en-US;q=0.7,en;q=0.3",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Upgrade-Insecure-Requests": "1",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "none",
+                },
             )
             page = ctx.new_page()
 

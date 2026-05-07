@@ -133,7 +133,7 @@ class NipponScraper(BaseScraper):
     site_name = "ふるさと納税ニッポン！"
     site_id   = "nippon"
 
-    def run_sync(self, pages_per_category: int = 3) -> int:
+    def run_sync(self, pages_per_category: int = 5) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)

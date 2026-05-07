@@ -99,7 +99,7 @@ def _extract_item(li: ElementHandle, category: str) -> dict | None:
 
 def _scrape_page(page: Page, cat: str, category: str, p: int) -> list[dict]:
     url = f"{BASE_URL}/products/list.php?cat={cat}&cnt=60&p={p}"
-    page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+    page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
     items = page.query_selector_all("ul.l-productsList__list li.l-productsList__item")
     rows: list[dict] = []

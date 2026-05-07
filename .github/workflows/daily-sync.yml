@@ -17,7 +17,7 @@ jobs:
   # ─────────────────────────────────────────────────────────
   scrape:
     name: "Scrape: ${{ matrix.site.id }}"
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.site.runner || 'ubuntu-latest' }}
     timeout-minutes: 20
     continue-on-error: true
 
@@ -29,8 +29,8 @@ jobs:
           # ── アクティブ (スクレイパー実装済み) ──────────────────
           - { id: rakuten,           module: scrapers.rakuten_api,     type: api,        active: true  }
           - { id: furunavi,          module: scrapers.furunavi,        type: playwright, active: true  }
-          - { id: satofull,          module: scrapers.satofull,        type: playwright, active: true  }
-          - { id: amazon,            module: scrapers.amazon,          type: playwright, active: true  }
+          - { id: satofull,          module: scrapers.satofull,        type: playwright, active: true,  runner: self-hosted }
+          - { id: amazon,            module: scrapers.amazon,          type: api,        active: false }
           - { id: furusato_choice,   module: scrapers.furusato_choice, type: playwright, active: true  }
           - { id: pokemaru,          module: scrapers.pokemaru,        type: playwright, active: true  }
           - { id: whiskey_furusato,  module: scrapers.whiskey_furusato,type: playwright, active: true  }
@@ -101,7 +101,10 @@ jobs:
           RAKUTEN_ACCESS_KEY:        ${{ secrets.RAKUTEN_ACCESS_KEY }}
           RAKUTEN_AFFILIATE_ID:      ${{ secrets.RAKUTEN_AFFILIATE_ID }}
           RAKUTEN_APP_URL:           ${{ secrets.RAKUTEN_APP_URL }}
-          # Amazon Associates
+          # Amazon PA-API 5.0
+          AMAZON_ACCESS_KEY:         ${{ secrets.AMAZON_ACCESS_KEY }}
+          AMAZON_SECRET_KEY:         ${{ secrets.AMAZON_SECRET_KEY }}
+          AMAZON_PARTNER_TAG:        ${{ secrets.AMAZON_PARTNER_TAG }}
           AMAZON_ASSOCIATES_TAG:     ${{ secrets.AMAZON_ASSOCIATES_TAG }}
           # A8.net
           A8_FURUNAVI_ID:            ${{ secrets.A8_FURUNAVI_ID }}

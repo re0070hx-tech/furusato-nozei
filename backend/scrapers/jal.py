@@ -39,25 +39,95 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-# インラインスクリプト内の product_list / items 配列エントリ
-_PRICE_RE = re.compile(r'"product_id":\s*"([a-f0-9]+)",\s*"unit_price":\s*(\d+)')
-_ITEM_RE  = re.compile(r'"id":\s*"([a-f0-9]+)",\s*"name":\s*"([^"]+)"')
+_PID_RE   = re.compile(r"/goods/detail/([a-f0-9]+)")
+# フィールド間に他キーが挟まる場合も対応 (re.DOTALL で改行を跨ぐ)
+_PRICE_RE = re.compile(
+    r'"product_id"\s*:\s*"([a-f0-9]+)"[^}]{0,300}?"unit_price"\s*:\s*(\d+)',
+    re.DOTALL,
+)
+_ITEM_RE  = re.compile(
+    r'"id"\s*:\s*"([a-f0-9]+)"[^}]{0,400}?"name"\s*:\s*"([^"]+)"',
+    re.DOTALL,
+)
 
 
 def _scrape_page(page: Page, cat_id: int, category: str, p: int) -> list[dict]:
     url = f"{BASE_URL}/goods/?cc[]={cat_id}&page={p}"
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-    html = page.content()
 
+    # Primary: DOM-based extraction (server-rendered HTML)
+    try:
+        page.wait_for_selector("a[href*='/goods/detail/']", timeout=15_000)
+        items_data: list[dict] = page.evaluate("""() => {
+            const results = [];
+            const seen = new Set();
+            document.querySelectorAll("a[href*='/goods/detail/']").forEach(a => {
+                const href = a.getAttribute("href") || "";
+                const m = href.match(/\\/goods\\/detail\\/([a-f0-9]+)/);
+                if (!m) return;
+                const pid = m[1];
+                if (seen.has(pid)) return;
+                seen.add(pid);
+
+                const card = a.closest("li, article, [class*='item'], [class*='product'], [class*='card']") || a;
+                const titleEl = card.querySelector("[class*='name'], [class*='title'], h3, h2, h4");
+                const title = titleEl ? titleEl.innerText.trim() : (a.innerText.trim() || null);
+                if (!title) return;
+
+                const priceEl = card.querySelector("[class*='price'], [class*='amount']");
+                const priceText = priceEl ? priceEl.innerText.replace(/,/g, "") : "";
+                const priceM = priceText.match(/\\d+/);
+                const price = priceM ? parseInt(priceM[0]) : null;
+
+                const imgEl = card.querySelector("img");
+                const muniEl = card.querySelector("[class*='city'],[class*='area'],[class*='pref'],[class*='muni']");
+
+                results.push({
+                    pid, title, price,
+                    imgUrl: imgEl ? (imgEl.getAttribute("src") || imgEl.getAttribute("data-src") || null) : null,
+                    municipality: muniEl ? muniEl.innerText.trim() : null,
+                });
+            });
+            return results;
+        }""")
+        rows: list[dict] = []
+        seen: set[str] = set()
+        for item in items_data:
+            pid = item.get("pid")
+            title = item.get("title") or ""
+            if not pid or not title or pid in seen:
+                continue
+            seen.add(pid)
+            rows.append({
+                "id":               f"jal_{pid}",
+                "site_name":        "JALふるさと納税",
+                "title":            title,
+                "donation_amount":  item.get("price"),
+                "volume_g":         extract_volume_g(title),
+                "asset_rate":       None,
+                "market_price":     None,
+                "product_url":      f"{BASE_URL}/goods/detail/{pid}/",
+                "image_url":        item.get("imgUrl"),
+                "category":         category,
+                "municipality":     item.get("municipality"),
+                "payment_campaigns": None,
+            })
+        if rows:
+            return rows
+    except Exception as e:
+        log.debug("JAL DOM approach: %s", e)
+
+    # Fallback: inline script regex (DOTALL で改行を跨いでマッチ)
+    html = page.content()
     prices: dict[str, int] = {
         m.group(1): int(m.group(2)) for m in _PRICE_RE.finditer(html)
     }
     if not prices:
-        log.debug("JAL cat=%s p=%d: product_list エントリ未検出", category, p)
+        log.debug("JAL cat=%s p=%d: 商品データ未検出", category, p)
         return []
 
-    seen: set[str] = set()
-    rows: list[dict] = []
+    rows = []
+    seen = set()
     for m in _ITEM_RE.finditer(html):
         pid, title = m.group(1), m.group(2)
         if pid in seen:
@@ -87,7 +157,7 @@ class JalScraper(BaseScraper):
     site_name = "JALふるさと納税"
     site_id   = "jal"
 
-    def run_sync(self, pages_per_category: int = 3) -> int:
+    def run_sync(self, pages_per_category: int = 5) -> int:
         total = 0
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)

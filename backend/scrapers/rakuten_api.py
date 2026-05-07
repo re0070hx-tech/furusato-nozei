@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 RAKUTEN_ENDPOINT = "https://app.rakuten.co.jp/services/api/IchibaItem/Search/20170706"
 
 APP_ID       = os.environ["RAKUTEN_APP_ID"]
-AFFILIATE_ID = os.environ["RAKUTEN_AFFILIATE_ID"]
+AFFILIATE_ID = os.environ.get("RAKUTEN_AFFILIATE_ID", "")
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
@@ -60,7 +60,6 @@ def _detect_category(title: str) -> str | None:
 
 
 def _item_to_row(item: dict) -> dict:
-    from lib.affiliate import generate_affiliate_link
     images = item.get("mediumImageUrls", [])
     image_url = images[0]["imageUrl"] if images else None
     pk = "rakuten_" + item["itemCode"].replace("/", "_").replace(":", "_")
@@ -73,7 +72,7 @@ def _item_to_row(item: dict) -> dict:
         "site_name":       "楽天",
         "title":           item["itemName"],
         "donation_amount": int(item["itemPrice"]),
-        "volume_g":        None,
+        "volume_g":        extract_volume_g(item["itemName"]),
         "asset_rate":      None,
         "market_price":    None,
         "product_url":     product_url,
@@ -89,14 +88,18 @@ def fetch_items(keyword: str, page: int = 1, hits: int = 30) -> dict:
     """楽天IchibaItem Search APIを呼び出す"""
     params = {
         "applicationId": APP_ID,
-        "affiliateId":   AFFILIATE_ID,
         "format":        "json",
         "keyword":       keyword,
         "hits":          hits,
         "page":          page,
-        "sort":          "-reviewCount",
+        "sort":          "standard",
     }
+    # affiliateId は設定されている場合のみ付与（フォーマット不正で 400 になるため）
+    if AFFILIATE_ID:
+        params["affiliateId"] = AFFILIATE_ID
     resp = requests.get(RAKUTEN_ENDPOINT, params=params, timeout=15)
+    if not resp.ok:
+        log.warning("楽天API %d: %s", resp.status_code, resp.text[:200])
     resp.raise_for_status()
     return resp.json()
 
