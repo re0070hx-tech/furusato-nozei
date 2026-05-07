@@ -23,9 +23,11 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install Python dependencies
+        shell: pwsh
         run: pip install -r backend/requirements.txt
 
       - name: Install Playwright
+        shell: pwsh
         run: python -m playwright install --with-deps chromium
 
       - name: Run satofull scraper
@@ -35,6 +37,7 @@ jobs:
           VC_SATOFULL_SID:           ${{ secrets.VC_SATOFULL_SID }}
           VC_SATOFULL_PID:           ${{ secrets.VC_SATOFULL_PID }}
         working-directory: backend
+        shell: pwsh
         run: |
-          export PYTHONPATH=$PYTHONPATH:.
+          $env:PYTHONPATH = "$(Get-Location)"
           python -X utf8 -m scrapers.satofull
