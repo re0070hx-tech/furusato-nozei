@@ -29,7 +29,7 @@ jobs:
           # ── アクティブ (スクレイパー実装済み) ──────────────────
           - { id: rakuten,           module: scrapers.rakuten_api,     type: api,        active: true  }
           - { id: furunavi,          module: scrapers.furunavi,        type: playwright, active: true  }
-          - { id: satofull,          module: scrapers.satofull,        type: playwright, active: true,  runner: self-hosted }
+          - { id: satofull,          module: scrapers.satofull,        type: playwright, active: false } # satofull-sync.yml で22:00 JSTに別途実行
           - { id: amazon,            module: scrapers.amazon,          type: api,        active: false }
           - { id: furusato_choice,   module: scrapers.furusato_choice, type: playwright, active: true  }
           - { id: pokemaru,          module: scrapers.pokemaru,        type: playwright, active: true  }
